@@ -3,6 +3,7 @@
 *.suo
 *.user
 *.bak
+*.sln
 
 # Binaries and Build Artifacts
 [Bb]in/
