@@ -1,14 +1,15 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace CourseRegistrationSystem.DAL.Entities;
 
-public class Instructor : User
+public class InstructorProfile
 {
-    [Required] private string Title { get; set; } = string.Empty;
-    [Required] private List<Section> Sections { get; set; } = new();
+    [Key] [ForeignKey("User")] public string InstructorId { get; set; } = null!;
 
-    public bool AssignGrade(Section section, Student student, string grade)
-    {
-        return true;
-    }
+    [Required] public string Title { get; set; } = null!;
+
+    private List<Section> Sections { get; set; } = new();
+
+    public BaseUser User { get; set; } = null!;
 }
