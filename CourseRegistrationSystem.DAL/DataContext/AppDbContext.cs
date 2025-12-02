@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace CourseRegistrationSystem.DAL.DataContext
 {
-    internal class AppDbContext : IdentityDbContext<BaseUser>
+    public class AppDbContext : IdentityDbContext<BaseUser>
     {
         public DbSet<Course> Courses { get; set; }
         public DbSet<Section> Sections { get; set; }
