@@ -1,5 +1,7 @@
 ﻿using StudentManagementSystem.BusinessLayer.Contracts;
 using StudentManagementSystem.BusinessLayer.DTOs.CourseDTOs;
+using StudentManagementSystem.DAL.Contracts;
+using StudentManagementSystem.Entities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,6 +12,13 @@ namespace StudentManagementSystem.BusinessLayer.Services
 {
     internal class CourseService : ICourseService
     {
+        private readonly IUnitOfWork unitOfWork;
+        private IBaseRepository<Course> courseRepository;
+        public CourseService(IUnitOfWork unitOfWork)
+        {
+            this.unitOfWork = unitOfWork;
+            courseRepository = unitOfWork.Courses;
+        }
         public Task<ViewCourseDetailsDTO> CreateCourse(CreateCourseDTO courseDTO)
         {
             throw new NotImplementedException();
