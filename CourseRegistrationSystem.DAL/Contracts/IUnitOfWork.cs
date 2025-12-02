@@ -1,5 +1,4 @@
 ﻿using CourseRegistrationSystem.DAL.DataContext;
-using Microsoft.AspNetCore.Server.Kestrel.Core.Adapter.Internal;
 using StudentManagementSystem.DAL.Entities;
 using StudentManagementSystem.Entities;
 using System;
