@@ -10,7 +10,7 @@ namespace StudentManagementSystem.BusinessLayer.Contracts
     public interface ICourseService
     {
         //Read
-        Task<IEnumerable<ViewCourseSummaryDTO>> GetAllCoursesAsync();
+        Task<IEnumerable<ViewCourseSummaryDTO>> GetAllCoursesAsync(string? courseName, int? creditHours, int? availableSeats, string? courseCode, int? courseCategoryId);
         Task<ViewCourseDetailsDTO> GetCourseById(int id);
         //Create
         Task<ViewCourseDetailsDTO> CreateCourse(CreateCourseDTO courseDTO);
