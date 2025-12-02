@@ -21,15 +21,51 @@ namespace StudentManagementSystem.BusinessLayer.Services
             this.unitOfWork = unitOfWork;
             courseRepository = unitOfWork.Courses;
         }
-        public Task<ViewCourseDetailsDTO> CreateCourse(CreateCourseDTO courseDTO)
+        public async Task<ViewCourseDetailsDTO> CreateCourse(CreateCourseDTO courseDTO)
         {
-            throw new NotImplementedException();
+            if (courseDTO == null)
+                throw new ArgumentNullException(nameof(courseDTO));
+
+            // 1. Map DTO -> Entity
+            var course = new Course
+            {
+                CourseName = courseDTO.CourseName,
+                CreditHours = courseDTO.CreditHours,
+                AvailableSeats = courseDTO.AvailableSeats,
+                CourseCode = courseDTO.CourseCode,
+                CourseCategory = (CourseCategory)courseDTO.CourseCategoryId
+            };
+
+            // 2. Save entity
+            await unitOfWork.Courses.AddAsync(course);
+            unitOfWork.SaveChanges();
+
+            // 3. Map Entity -> View DTO
+            return new ViewCourseDetailsDTO
+            {
+                CourseId = course.CourseId,
+                CourseName = course.CourseName,
+                CreditHours = course.CreditHours,
+                AvailableSeats = course.AvailableSeats,
+                CourseCode = course.CourseCode,
+                CourseCategoryId = (int)course.CourseCategory,
+                CourseCategoryName = course.CourseCategory.ToString()
+            };
         }
 
-        public Task<string> DeleteCourse(int id)
+
+        public async Task<string> DeleteCourse(int id)
         {
-            throw new NotImplementedException();
+            bool deleted = await unitOfWork.Courses.DeleteAsync(id);
+
+            if (!deleted)
+                throw new Exception($"Course with ID {id} not found.");
+
+            unitOfWork.SaveChanges();
+
+            return $"Course with ID {id} deleted successfully.";
         }
+
 
         public Task<IEnumerable<ViewCourseSummaryDTO>> GetAllCoursesAsync()
         {
@@ -63,7 +99,7 @@ namespace StudentManagementSystem.BusinessLayer.Services
 
             // 4. Execute the query using SingleOrDefaultAsync to get a single result
             // when getting all courses (a list), use ToListAsync to execute query
-            ViewCourseDetailsDTO? courseDTO= await projectedQuery.SingleOrDefaultAsync(); //will return null if not found
+            ViewCourseDetailsDTO? courseDTO = await projectedQuery.SingleOrDefaultAsync(); //will return null if not found
             if (courseDTO == null)
                 throw new Exception($"Course with ID: {id} not found.");
             return courseDTO;
