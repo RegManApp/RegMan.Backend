@@ -5,9 +5,13 @@ namespace StudentManagementSystem.Entities
 {
     public class ScheduleSlot
     {
+        [Key]
         [Required] public int scheduleSlotId { get; set; }
+        [Required, ForeignKey("Section")]
         [Required] public Section section { get; set; } = null!;
+        [Required, ForeignKey("Room")]
         [Required] public Room room { get; set; } = null!;
+        [Required, ForeignKey("TimeSlot")]
         [Required] public TimeSlot timeSlot { get; set; } = null!;
 
         // public ScheduleSlot() { }

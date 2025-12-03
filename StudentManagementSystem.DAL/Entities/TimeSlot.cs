@@ -4,6 +4,8 @@ namespace StudentManagementSystem.Entities
 {
     public class TimeSlot
     {
+        [Key]
+        public int timeSlotId { get; set; }
         [Required] public DayOfWeek day { get; set; }
         [Required] public TimeSpan startTime { get; set; }
         [Required] public TimeSpan endTime { get; set; }

@@ -4,6 +4,7 @@ namespace StudentManagementSystem.Entities
 {
     public class Room
     {
+        [Key]
         [Required] public int roomId { get; set; }
 
         [Required] public string building { get; set; } = null!;
