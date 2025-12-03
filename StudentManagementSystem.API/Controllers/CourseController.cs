@@ -15,7 +15,7 @@ namespace StudentManagementSystem.API.Controllers
             this.courseService = courseService;
         }
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetCourseById(int id)
+        public async Task<IActionResult> GetCourseByIdAsync(int id)
         {
 
             try 
@@ -30,7 +30,7 @@ namespace StudentManagementSystem.API.Controllers
 
         }
         [HttpGet]
-        public async Task<IActionResult> GetAllCourses([FromQuery] string? courseName, [FromQuery] int? creditHours, [FromQuery] int? availableSeats, [FromQuery] string? courseCode, [FromQuery] int? courseCategoryId)
+        public async Task<IActionResult> GetAllCoursesAsync([FromQuery] string? courseName, [FromQuery] int? creditHours, [FromQuery] int? availableSeats, [FromQuery] string? courseCode, [FromQuery] int? courseCategoryId)
         {
             try
             {
@@ -43,7 +43,7 @@ namespace StudentManagementSystem.API.Controllers
             }
         }
         [HttpPost]
-        public async Task<IActionResult> CreateCourse([FromBody] CreateCourseDTO courseDTO)
+        public async Task<IActionResult> CreateCourseAsync([FromBody] CreateCourseDTO courseDTO)
         {
             try
             {
@@ -56,7 +56,7 @@ namespace StudentManagementSystem.API.Controllers
             }
         }
         [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteCourse(int id)
+        public async Task<IActionResult> DeleteCourseAsync(int id)
         {
             try
             {
@@ -69,7 +69,7 @@ namespace StudentManagementSystem.API.Controllers
             }
         }
         [HttpPut]
-        public async Task<IActionResult> UpdateCourse([FromBody] UpdateCourseDTO courseDTO)
+        public async Task<IActionResult> UpdateCourseAsync([FromBody] UpdateCourseDTO courseDTO)
         {
             try
             {
