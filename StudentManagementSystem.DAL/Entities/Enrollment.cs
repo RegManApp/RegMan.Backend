@@ -1,3 +1,4 @@
+using StudentManagementSystem.DAL.Entities;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -6,7 +7,7 @@ namespace StudentManagementSystem.Entities
     public class Enrollment
     {
         [Key]
-        public int enrollmentId { get; set; }
+        public int EnrollmentId { get; set; }
 
         public Status Status { get; set; }
 
@@ -18,6 +19,9 @@ namespace StudentManagementSystem.Entities
         [Required]
         [ForeignKey("Section")]
         public int SectionId { get; set; }
+        //Nav properties
+        public StudentProfile? Student { get; set; }
+        public Section? Section { get; set; }
 
         // Operations
 
