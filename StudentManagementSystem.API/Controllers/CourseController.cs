@@ -55,6 +55,19 @@ namespace StudentManagementSystem.API.Controllers
                 return Ok(ex.Message);
             }
         }
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteCourse(int id)
+        {
+            try
+            {
+                var result = await courseService.DeleteCourse(id);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return Ok(ex.Message);
+            }
+        }
 
 
     }
