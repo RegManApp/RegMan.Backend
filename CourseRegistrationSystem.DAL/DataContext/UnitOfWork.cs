@@ -55,9 +55,9 @@ namespace StudentManagementSystem.DAL.DataContext
         public IBaseRepository<StudentProfile> StudentProfiles => studentProfiles.Value;
         public IBaseRepository<AcademicPlan> AcademicPlans => academicPlans.Value;
 
-        public void SaveChanges()
+        public async Task SaveChangesAsync()
         {
-            dbcontext.SaveChanges();
+            await dbcontext.SaveChangesAsync();
         }
     }
 }

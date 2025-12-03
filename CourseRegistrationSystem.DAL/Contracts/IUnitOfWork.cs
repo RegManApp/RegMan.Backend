@@ -25,6 +25,6 @@ namespace StudentManagementSystem.DAL.Contracts
         public IBaseRepository<InstructorProfile> InstructorProfiles { get; }
         public IBaseRepository<StudentProfile> StudentProfiles { get; }
         public IBaseRepository<AcademicPlan> AcademicPlans { get; }
-        void SaveChanges();
+        Task SaveChangesAsync();
     }
 }
