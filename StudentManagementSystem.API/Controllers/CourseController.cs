@@ -13,6 +13,22 @@ namespace StudentManagementSystem.API.Controllers
         {
             this.courseService = courseService;
         }
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetCourseById(int id)
+        {
+
+            try 
+            {
+                var course = await courseService.GetCourseById(id);
+                return Ok(course);
+            }
+            catch (Exception ex) 
+            {
+                return Ok(ex.Message);
+            }
+
+        }
+      
 
     }
 }
