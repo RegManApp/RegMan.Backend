@@ -1,18 +1,18 @@
-using System;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
-namespace StudentManagementSystem.Entities
+namespace YourProject.DAL.Entities
 {
     public class Enrollment
     {
         
         public Status Status {get;set;}
         
-        [ForeignKey(nameof(StudentId))]
-        public Student StudentId;
+        [Key] [ForeignKey('Student')]
+        public Student StudentId{ get; set; }
 
-        [ForeignKey(nameof(SectionId))]
-        public Section SectionId;
+        [Key] [ForeignKey('Section')]
+        public Section SectionId{ get; set; }
 
         // Operations
         
@@ -35,24 +35,3 @@ namespace StudentManagementSystem.Entities
 
     }
 }
-protected override void OnModelCreating(ModelBuilder modelBuilder)
-{
-    modelBuilder.Entity<Enrollment>()
-        .HasKey(e => new { e.StudentId, e.SectionId });
-
-    modelBuilder.Entity<Enrollment>()
-        .HasOne(e => e.Student);
-        .WithMany(s => s.Enrollments);
-        .HasForeignKey(e => e.StudentId);
-
-    modelBuilder.Entity<Enrollment>()
-        .HasOne(e => e.Section)
-        .WithMany(sec => sec.Enrollments);
-        .HasForeignKey(e => e.SectionId);
-
-    base.OnModelCreating(modelBuilder);
-}
-public enum Status{Enrolled, Dropped, Completed};
-
-public ICollection<Enrollment> Enrollments {get;set;}
-
