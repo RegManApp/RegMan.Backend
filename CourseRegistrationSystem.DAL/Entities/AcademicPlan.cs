@@ -1,15 +1,15 @@
 
 public class AcademicPlan
 {
-    private string PlanID ;
-    private string majorname ;
-    private int Creds ;
+    public string AcademicPlanId ;
+    public string majorname ;
+    public int Creds ;
 
     private List<Course> courses;
 
-    public void SetPlanID(string x)
+    public void SetAcademicPlanId(string x)
      {
-        PlanID = x;
+        AcademicPlanId = x;
      }
 
     public void Setmajorname(string x)
@@ -22,9 +22,9 @@ public class AcademicPlan
         Creds = x;
      }
 
-    public PlanID GetPlan()
+    public AcademicPlanId GetPlan()
      {
-      return PlanID;
+      return AcademicPlanId;
      }
 
     public majorname GetMajorName()
@@ -39,27 +39,28 @@ public class AcademicPlan
 
     public AcademicPlan(string x, string y, int z)
     {
-        PlanID = x;
+        AcademicPlanId = x;
         majorname = y;
         Creds = z;
-        courses = new List<Course>();
+        courses = new List<ICollection>();
     }
 
-    public void AddCourse(Course x)
-    {
-        if (x != null)
-            courses.Add(x);
-    }
-
-    public int GetTotalCredits()
-    {
-        int total = 0;
-
-        foreach (var c in courses)
-        {
-            total += c.Creds;
-        }
-
+//    public void AddCourse(Course x)
+//    {
+//        if (x != null)
+//            courses.Add(x);
+//    }
+//
+//    public int GetTotalCredits()
+//   {
+//      int total = 0;
+//
+//        foreach (var c in courses)
+//        {
+//            total += c.Creds;
+//        }
+//
         return total;
     }
 }
+
