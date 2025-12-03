@@ -68,6 +68,19 @@ namespace StudentManagementSystem.API.Controllers
                 return Ok(ex.Message);
             }
         }
+        [HttpPut]
+        public async Task<IActionResult> UpdateCourse([FromBody] UpdateCourseDTO courseDTO)
+        {
+            try
+            {
+                var updatedCourse = await courseService.UpdateCourse(courseDTO);
+                return Ok(updatedCourse);
+            }
+            catch (Exception ex)
+            {
+                return Ok(ex.Message);
+            }
+        }
 
 
     }
