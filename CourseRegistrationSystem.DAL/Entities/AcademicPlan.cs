@@ -5,8 +5,7 @@ public class AcademicPlan
     public string MajorName{get;set;} 
     public int Credits{get;set;} 
 
-    public List<Course> courses;
-    
+    public List<Course> Courses = new HashSet<Course>();
 
 //    public void AddCourse(Course x)
 //    {
@@ -26,6 +25,7 @@ public class AcademicPlan
         return total;
     }
 }
+
 
 
 
