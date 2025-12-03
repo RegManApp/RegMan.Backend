@@ -1,11 +1,13 @@
 
+using StudentManagementSystem.Entities;
+
 public class AcademicPlan
 {
     public string AcademicPlanId{get;set;} 
     public string MajorName{get;set;} 
     public int Credits{get;set;} 
 
-    public List<Course> Courses = new HashSet<Course>();
+    public ICollection<Course> Courses = new HashSet<Course>();
 
 //    public void AddCourse(Course x)
 //    {
@@ -22,9 +24,8 @@ public class AcademicPlan
 //            total += c.Creds;
 //        }
 //
-        return total;
-    }
 }
+
 
 
 
