@@ -5,17 +5,22 @@ namespace StudentManagementSystem.Entities
 {
     public class Enrollment
     {
-        public int EnrollmentId { get; set; }
-        public Status Status {get;set;}
-        
-        [ForeignKey("Student")]
-        public int StudentId{ get; set; }
+        [Key]
+        public int enrollmentId { get; set; }
 
+        public Status Status { get; set; }
+
+        [Required]
+        [ForeignKey("Student")]
+        public int StudentId { get; set; }
+
+
+        [Required]
         [ForeignKey("Section")]
-        public int SectionId{ get; set; }
+        public int SectionId { get; set; }
 
         // Operations
-        
+
         public void ChangeStatus(Status newStatus)
         {
             Status = newStatus;
@@ -28,12 +33,12 @@ namespace StudentManagementSystem.Entities
         }
 
 
-    public void Drop()
-    {
-        Status = Status.Dropped;
-    }
+        public void Drop()
+        {
+            Status = Status.Dropped;
+        }
 
     }
 }
 
-public enum Status{Enrolled, Dropped, Completed};
+public enum Status { Enrolled, Dropped, Completed };

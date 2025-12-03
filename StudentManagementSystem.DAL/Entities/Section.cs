@@ -7,13 +7,14 @@ namespace StudentManagementSystem.Entities
 {
     public class Section
     {
+        [Key]
         public int SectionId { get; set; }
         [Required]
         public string Semester { get; set; }
         public DateTime Year { get; set; }
-        [ForeignKey("Instructor")]
+        [Required, ForeignKey("Instructor")]
         public int InstructorId { get; set; }
-        [ForeignKey("Course")]
+        [Required, ForeignKey("Course")]
         public int CourseId { get; set; }
 
         //navigation properties
