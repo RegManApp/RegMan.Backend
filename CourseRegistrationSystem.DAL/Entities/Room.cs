@@ -1,99 +1,60 @@
+using StudentManagementSystem.Entities;
 using System;
 
-namespace StudentManagementSystem.Models
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+
+namespace StudentManagementSystem.Entities
 {
     public class Room
     {
-        private int roomId;
-        private string building;
-        private string roomNumber;
-        private int capacity;
-        private List<ScheduleSlot> schedule = new List<ScheduleSlot>();
+        [Required] public int roomId { get; set; }
 
-        public Room() { }
-        public Room(int roomId, string building, string roomNumber, int capacity)
-        {
-            this.roomId = roomId;
-            this.building = building;
-            this.roomNumber = roomNumber;
-            this.capacity = capacity;
-        }
+        [Required] public string building { get; set; } = null!;
 
-        // Setters
-        public void SetRoomId(int value)
-        {
-            roomId = value;
-        }
-        public void SetBuilding(string value)
-        {
-            building = value;
-        }
-        public void SetRoomNumber(string value)
-        {
-            roomNumber = value;
-        }
-        public void SetCapacity(int value)
-        {
-            capacity = value;
-        }
-        public void SetSchedule(List<ScheduleSlot> value)
-        {
-            schedule = value;
-        }
+        [Required] public string roomNumber { get; set; } = null!;
 
-        // Getters
-        public int GetRoomId()
-        {
-            return roomId;
-        }
-        public string GetBuilding()
-        {
-            return building;
-        }
-        public string GetRoomNumber()
-        {
-            return roomNumber;
-        }
-        public int GetCapacity()
-        {
-            return capacity;
-        }
-        public List<ScheduleSlot> GetSchedule()
-        {
+        [Required] public int capacity { get; set; }
 
-            return schedule;
-        }
+        public List<ScheduleSlot> schedule { get; set; } = new();
 
-        public bool IsAvailable(TimeSlot slot)
-        {
-            foreach (ScheduleSlot slot in schedule)
-            {
-                TimeSlot existing = slot.GetTimeSlot();
+        // public Room() { }
 
-                if (existing.GetDay() == slot.GetDay())
-                {
-                    // if there is confilic in the time
-                    if (existing.Overlaps(slot))
-                        return false;
-                }
-            }
+        // public Room(int roomId, string building, string roomNumber, int capacity)
+        // {
+        //     this.roomId = roomId;
+        //     this.building = building;
+        //     this.roomNumber = roomNumber;
+        //     this.capacity = capacity;
+        // }
+        // public bool IsAvailable(TimeSlot slot)
+        // {
+        //     foreach (ScheduleSlot slot in schedule)
+        //     {
+        //         TimeSlot existing = slot.GetTimeSlot();
 
-            return true;
-        }
+        //         if (existing.GetDay() == slot.GetDay())
+        //         {
+        //             // if there is confilic in the time
+        //             if (existing.Overlaps(slot))
+        //                 return false;
+        //         }
+        //     }
 
+        //     return true;
+        // }
 
-        public void AddScheduleSlot(ScheduleSlot slot)
-        {
-            if (slot != null)
-            {
-                schedule.Add(slot);
-            }
-        }
-        // to display class data
-        public override string ToString()
-        {
-            return $"Room ID: {roomId}, Building: {building}, Room Number: {roomNumber}, Capacity: {capacity}, Scheduled Slots: {schedule.Count}";
-        }
-
+        // public void AddScheduleSlot(ScheduleSlot slot)
+        // {
+        //     if (slot != null)
+        //     {
+        //         schedule.Add(slot);
+        //     }
+        // }
+        // // to display class data
+        // public override string ToString()
+        // {
+        //     return $"Room ID: {roomId}, Building: {building}, Room Number: {roomNumber}, Capacity: {capacity}, Scheduled Slots: {schedule.Count}";
+        // }
     }
 }
