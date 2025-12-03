@@ -12,7 +12,7 @@ namespace StudentManagementSystem.DAL.Contracts
 {
     public interface IUnitOfWork
     {
-       
+
 
         public IBaseRepository<Course> Courses { get; }
         public IBaseRepository<Room> Rooms { get; }
@@ -25,6 +25,6 @@ namespace StudentManagementSystem.DAL.Contracts
         public IBaseRepository<InstructorProfile> InstructorProfiles { get; }
         public IBaseRepository<StudentProfile> StudentProfiles { get; }
         public IBaseRepository<AcademicPlan> AcademicPlans { get; }
-        void SaveChanges();
+        Task SaveChangesAsync();
     }
 }

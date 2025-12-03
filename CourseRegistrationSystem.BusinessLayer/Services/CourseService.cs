@@ -38,8 +38,7 @@ namespace StudentManagementSystem.BusinessLayer.Services
 
             // 2. Save entity
             await unitOfWork.Courses.AddAsync(course);
-            unitOfWork.SaveChanges();
-
+            await unitOfWork.SaveChangesAsync(); // updated
             // 3. Map Entity -> View DTO
             return new ViewCourseDetailsDTO
             {
@@ -61,7 +60,7 @@ namespace StudentManagementSystem.BusinessLayer.Services
             if (!deleted)
                 throw new Exception($"Course with ID {id} not found.");
 
-            unitOfWork.SaveChanges();
+            await unitOfWork.SaveChangesAsync();   // updated
 
             return $"Course with ID {id} deleted successfully.";
         }
@@ -154,8 +153,7 @@ namespace StudentManagementSystem.BusinessLayer.Services
             existingCourse.CourseCategory = (CourseCategory)courseDTO.CourseCategoryId;
 
             unitOfWork.Courses.Update(existingCourse);
-            unitOfWork.SaveChanges();
-
+            await unitOfWork.SaveChangesAsync();   // updated
             return new ViewCourseDetailsDTO
             {
                 CourseId = existingCourse.CourseId,
