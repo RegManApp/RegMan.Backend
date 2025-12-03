@@ -7,13 +7,6 @@ public class AcademicPlan
 
     public List<Course> courses;
     
-    public AcademicPlan(string x, string y, int z)
-    {
-        AcademicPlanId = x;
-        MajorName = y;
-        Credits = z;
-        courses = new List<ICollection>();
-    }
 
 //    public void AddCourse(Course x)
 //    {
@@ -33,5 +26,6 @@ public class AcademicPlan
         return total;
     }
 }
+
 
 
