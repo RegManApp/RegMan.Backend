@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using StudentManagementSystem.DAL.Entities;
 using StudentManagementSystem.Entities;
+//Update-Database -StartupProject StudentManagementSystem.API
 
 namespace StudentManagementSystem.DAL.DataContext
 {
