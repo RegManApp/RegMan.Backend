@@ -17,5 +17,5 @@ public class StudentProfile
     public BaseUser User { get; set; } = null!;
     public string AcademicPlanId { get; set; } = null!;
     public AcademicPlan AcademicPlan { get; set; } = null!;
-    public ICollection<Enrollment> Enrollments { get; set; } = new HashSet<Enrollment>;
+    public ICollection<Enrollment> Enrollments { get; set; } = new HashSet<Enrollment>();
 }

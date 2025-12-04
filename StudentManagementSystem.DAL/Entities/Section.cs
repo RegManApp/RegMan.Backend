@@ -21,7 +21,7 @@ namespace StudentManagementSystem.Entities
         public Course Course { get; set; }
         public InstructorProfile Instructor { get; set; }
         public ICollection<ScheduleSlot> Slots { get; set; } = new HashSet<ScheduleSlot>();
-        public ICollection<Enrollment> Enrollments { get; set; } = new HashSet<Enrollment>;
+        public ICollection<Enrollment> Enrollments { get; set; } = new HashSet<Enrollment>();
 
 
 
