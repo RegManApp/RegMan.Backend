@@ -1,3 +1,4 @@
+using StudentManagementSystem.DAL.Entities;
 using System.ComponentModel.DataAnnotations;
 
 namespace StudentManagementSystem.Entities
@@ -8,10 +9,10 @@ namespace StudentManagementSystem.Entities
         public string AcademicPlanId { get; set; }
         public string MajorName { get; set; }
         public int Credits { get; set; }
+        public ICollection<Course> Courses { get; set; } = new HashSet<Course>();
+        public StudentProfile Student { get; set; }
 
-        public ICollection<Course> Courses = new HashSet<Course>();
 
-   
     }
 }
 
