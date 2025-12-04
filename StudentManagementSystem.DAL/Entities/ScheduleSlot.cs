@@ -9,13 +9,15 @@ namespace StudentManagementSystem.Entities
         [Key]
         [Required] public int scheduleSlotId { get; set; }
 
-        [Required]
+        //[Required]
         public Section section { get; set; } = null!;
-        [Required]
+        //[Required]
         public Room room { get; set; } = null!;
-        [Required]
+        //[Required]
         public TimeSlot timeSlot { get; set; } = null!;
-
+        public int SectionId { get; set; }
+        public int RoomId { get; set; }
+        public int TimeSlotId { get; set; }
         // public ScheduleSlot() { }
 
         // public ScheduleSlot(int id, Section section, Room room, TimeSlot timeSlot)
