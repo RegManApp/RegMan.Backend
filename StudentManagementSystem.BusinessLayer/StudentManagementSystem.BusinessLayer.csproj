@@ -11,7 +11,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\CourseRegistrationSystem.DAL\StudentManagementSystem.DAL.csproj" />
     <ProjectReference Include="..\StudentManagementSystem.DAL\StudentManagementSystem.DAL.csproj" />
   </ItemGroup>
 

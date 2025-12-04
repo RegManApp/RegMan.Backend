@@ -96,11 +96,7 @@ namespace StudentManagementSystem.DAL.DataContext
                 .Property(t => t.day);
             
         }
-        //protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-        //{
-        //    base.OnConfiguring(optionsBuilder);
-        //    optionsBuilder.UseSqlServer("Data Source=.;Initial Catalog=AppDb;Integrated Security=True;Trust Server Certificate=True");
-        //}
 
     }
+    
 }

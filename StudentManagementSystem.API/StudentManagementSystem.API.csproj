@@ -16,7 +16,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\CourseRegistrationSystem.BusinessLayer\StudentManagementSystem.BusinessLayer.csproj" />
     <ProjectReference Include="..\StudentManagementSystem.BusinessLayer\StudentManagementSystem.BusinessLayer.csproj" />
   </ItemGroup>
 

@@ -23,7 +23,7 @@ namespace StudentManagementSystem.DAL
             service.AddScoped<IUnitOfWork, UnitOfWork>();
             //service.AddDbContext<AppDbContext>(options=> { options.UseSqlServer("Data Source=.;Initial Catalog=StudentManagementDb;Integrated Security=True;Trust Server Certificate=True"); });
             service.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+            options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
 
             return service;
         }
