@@ -6,11 +6,13 @@ namespace StudentManagementSystem.Entities
 {
     public class BaseUser : IdentityUser
     {
-        [Required] public string Address { get; set; } = null!;
-        [Required] public string Role { get; set; } = null!;
         [Required]
         [StringLength(100, MinimumLength = 2)]
         public string FullName { get; set; } = null!;
+        
+        [Required]
+        [StringLength(200)]
+        public string Address { get; set; } = null!;
         
 
         public StudentProfile? StudentProfile { get; set; }
