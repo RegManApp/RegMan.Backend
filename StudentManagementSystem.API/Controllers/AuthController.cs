@@ -38,7 +38,8 @@ namespace StudentManagementSystem.API.Controllers
                 UserName = dto.Email,
                 Email = dto.Email,
                 FullName = dto.FullName,
-                Address = dto.Address
+                Address = dto.Address,
+                Role = dto.Role
             };
 
             var result = await userManager.CreateAsync(user, dto.Password);
