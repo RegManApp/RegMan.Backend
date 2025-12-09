@@ -58,6 +58,13 @@ namespace StudentManagementSystem.API
                 };
             });
 
+            // Add Authorization Policies (optional)
+            builder.Services.AddAuthorization(options =>
+            {
+                options.AddPolicy("RequireAdmin", policy =>
+                    policy.RequireRole("Admin"));
+            });
+
             // Register TokenService
             builder.Services.AddScoped<TokenService>();
 
