@@ -1,5 +1,5 @@
 ﻿using StudentManagementSystem.DAL.Entities;
-using StudentManagementSystem.Entities;
+using StudentManagementSystem.DAL.Entities;
 
 namespace StudentManagementSystem.DAL.Contracts
 {

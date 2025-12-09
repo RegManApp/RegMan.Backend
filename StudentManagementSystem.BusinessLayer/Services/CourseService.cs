@@ -2,7 +2,7 @@
 using StudentManagementSystem.BusinessLayer.Contracts;
 using StudentManagementSystem.BusinessLayer.DTOs.CourseDTOs;
 using StudentManagementSystem.DAL.Contracts;
-using StudentManagementSystem.Entities;
+using StudentManagementSystem.DAL.Entities;
 using System;
 using System.Collections.Generic;
 using System.Linq;

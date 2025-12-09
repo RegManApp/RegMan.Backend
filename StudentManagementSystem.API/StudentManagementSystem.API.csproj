@@ -24,7 +24,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Business Layer -->
     <ProjectReference Include="..\StudentManagementSystem.BusinessLayer\StudentManagementSystem.BusinessLayer.csproj" />
+
+    <!-- DAL Layer -->
+    <ProjectReference Include="..\StudentManagementSystem.DAL\StudentManagementSystem.DAL.csproj" />
   </ItemGroup>
 
 </Project>

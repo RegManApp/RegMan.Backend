@@ -1,7 +1,7 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 
-namespace StudentManagementSystem.Entities
+namespace StudentManagementSystem.DAL.Entities
 {
     public class Course
     {

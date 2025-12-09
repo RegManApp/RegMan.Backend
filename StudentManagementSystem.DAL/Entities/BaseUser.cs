@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Identity;
 using StudentManagementSystem.DAL.Entities;
 
-namespace StudentManagementSystem.Entities
+namespace StudentManagementSystem.DAL.Entities
 {
     public class BaseUser : IdentityUser
     {

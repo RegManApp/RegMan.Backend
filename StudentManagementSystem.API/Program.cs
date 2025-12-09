@@ -5,24 +5,23 @@ using StudentManagementSystem.BusinessLayer;
 using StudentManagementSystem.BusinessLayer.Services;
 using StudentManagementSystem.DAL;
 using StudentManagementSystem.DAL.DataContext;
-using StudentManagementSystem.Entities;
+using StudentManagementSystem.DAL.Entities;
 using System.Text;
+using StudentManagementSystem.API.Seeders;
 
 namespace StudentManagementSystem.API
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
-
 
             // Add Database Layer + Business Services
             builder.Services.AddDataBaseLayer(builder.Configuration);
             builder.Services.AddBusinessServices();
 
-
-            // Add Identity (Strong Password Rules)
+            // Add Identity
             builder.Services.AddIdentity<BaseUser, IdentityRole>(options =>
             {
                 options.Password.RequireDigit = true;
@@ -59,6 +58,13 @@ namespace StudentManagementSystem.API
                 };
             });
 
+            // Add Authorization Policies (optional)
+            builder.Services.AddAuthorization(options =>
+            {
+                options.AddPolicy("RequireAdmin", policy =>
+                    policy.RequireRole("Admin"));
+            });
+
             // Register TokenService
             builder.Services.AddScoped<TokenService>();
 
@@ -69,6 +75,16 @@ namespace StudentManagementSystem.API
 
             var app = builder.Build();
 
+            // Run Role + Admin seeding
+            using (var scope = app.Services.CreateScope())
+            {
+                var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+                var userManager = scope.ServiceProvider.GetRequiredService<UserManager<BaseUser>>();
+
+                await RoleSeeder.SeedRolesAsync(roleManager);
+                await UserSeeder.SeedAdminAsync(userManager);
+            }
+
             // Swagger only in Development
             if (app.Environment.IsDevelopment())
             {
@@ -78,8 +94,8 @@ namespace StudentManagementSystem.API
 
             app.UseHttpsRedirection();
 
-            // Order is IMPORTANT
-            app.UseAuthentication();  // MUST COME BEFORE Authorization
+            // IMPORTANT ORDER
+            app.UseAuthentication();
             app.UseAuthorization();
 
             app.MapControllers();

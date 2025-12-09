@@ -1,7 +1,7 @@
 ﻿using StudentManagementSystem.DAL.Contracts;
 using StudentManagementSystem.DAL.Entities;
 using StudentManagementSystem.DAL.Repositories;
-using StudentManagementSystem.Entities;
+using StudentManagementSystem.DAL.Entities;
 
 namespace StudentManagementSystem.DAL.DataContext
 {

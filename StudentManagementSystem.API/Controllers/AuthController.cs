@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using StudentManagementSystem.BusinessLayer.DTOs.AuthDTOs;
 using StudentManagementSystem.BusinessLayer.Services;
-using StudentManagementSystem.Entities;
+using StudentManagementSystem.DAL.Entities;
 
 namespace StudentManagementSystem.API.Controllers
 {
@@ -38,7 +38,8 @@ namespace StudentManagementSystem.API.Controllers
                 UserName = dto.Email,
                 Email = dto.Email,
                 FullName = dto.FullName,
-                Address = dto.Address
+                Address = dto.Address,
+                Role = dto.Role
             };
 
             var result = await userManager.CreateAsync(user, dto.Password);

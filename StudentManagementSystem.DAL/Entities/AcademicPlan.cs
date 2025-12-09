@@ -1,7 +1,7 @@
 using StudentManagementSystem.DAL.Entities;
 using System.ComponentModel.DataAnnotations;
 
-namespace StudentManagementSystem.Entities
+namespace StudentManagementSystem.DAL.Entities
 {
     public class AcademicPlan
     {
