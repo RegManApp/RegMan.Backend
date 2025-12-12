@@ -95,6 +95,7 @@ namespace StudentManagementSystem.BusinessLayer.Services
 
             return result;
         }
+        // Removed AvailableSeats filter from GetAllCoursesAsync method, this is the old version with AvailableSeats filter:
         //public async Task<IEnumerable<ViewCourseSummaryDTO>> GetAllCoursesAsync(string? courseName, int? creditHours, int? availableSeats, string? courseCode, int? courseCategoryId)
         //{
         //    var query = unitOfWork.Courses.GetAllAsQueryable();
