@@ -218,9 +218,11 @@ namespace StudentManagementSystem.BusinessLayer.Services
             if(sectionDTO.AvailableSeats>=30 && sectionDTO.AvailableSeats<=60) //i need to count the enrollments in this section and ensure that the admin doesnt redue the number to be less than the current enrollments
                 section.AvailableSeats = sectionDTO.AvailableSeats;
 
-            if (await instructorRepository.GetByIdAsync(sectionDTO.InstructorId??0) is null)
-                throw new KeyNotFoundException($"Instructor with ID {sectionDTO.InstructorId} does not exist or not found.");
-
+            if (sectionDTO.InstructorId.HasValue) //if it has a value, check if instructor exists
+            {
+                if (await instructorRepository.GetByIdAsync(sectionDTO.InstructorId??0) is null)
+                   throw new KeyNotFoundException($"Instructor with ID {sectionDTO.InstructorId} does not exist or not found.");
+            }
             section.InstructorId = sectionDTO.InstructorId;
 
             section.Semester = sectionDTO.Semester;
