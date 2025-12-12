@@ -13,7 +13,7 @@ namespace StudentManagementSystem.BusinessLayer.DTOs.SectionDTOs
         [Required]
         public string Semester { get; set; }
         public DateTime Year { get; set; }
-        public int InstructorId { get; set; }
+        public int? InstructorId { get; set; }
         [Required]
         [Range(30, 60)]
         public int AvailableSeats { get; set; }

@@ -103,9 +103,9 @@ namespace StudentManagementSystem.BusinessLayer.Services
                 SectionId = section.SectionId,
                 Semester = section.Semester,
                 Year = section.Year,
-                //InstructorId = section.InstructorId,
+                InstructorId = section.InstructorId,
                 AvailableSeats = section.AvailableSeats,
-                //InstructorName = section.Instructor.User.FullName,
+                InstructorName = section.Instructor.User.FullName,
                 CourseSummary =await courseService.GetCourseSummaryByIdAsync(section.CourseId),
                 ScheduleSlots = section.Slots?.Select(slot => new ViewScheduleSlotDTO
                 {
@@ -203,6 +203,30 @@ namespace StudentManagementSystem.BusinessLayer.Services
                 throw new Exception($"section with ID {id} was not found. ");
             }
             return section;
+        }
+        public async Task<ViewSectionDTO> UpdateSectionAsync(UpdateSectionDTO sectionDTO) 
+        {
+            if (sectionDTO == null)
+                throw new ArgumentNullException(nameof(sectionDTO));
+            Section? section = await sectionRepository.GetByIdAsync(sectionDTO.SectionId);
+            if (section is null)
+                throw new KeyNotFoundException($"Section with ID {sectionDTO.SectionId} does not exist or not found.");
+            //otherwise, update
+            if(sectionDTO.Year>= DateTime.Now)
+                section.Year= sectionDTO.Year;
+
+            if(sectionDTO.AvailableSeats>=30 && sectionDTO.AvailableSeats<=60) //i need to count the enrollments in this section and ensure that the admin doesnt redue the number to be less than the current enrollments
+                section.AvailableSeats = sectionDTO.AvailableSeats;
+
+            if (await instructorRepository.GetByIdAsync(sectionDTO.InstructorId??0) is null)
+                throw new KeyNotFoundException($"Instructor with ID {sectionDTO.InstructorId} does not exist or not found.");
+
+            section.InstructorId = sectionDTO.InstructorId;
+
+            section.Semester = sectionDTO.Semester;
+            sectionRepository.Update(section);
+            await unitOfWork.SaveChangesAsync();
+            return await GetSectionByIdAsync(sectionDTO.SectionId);
         }
         
 
