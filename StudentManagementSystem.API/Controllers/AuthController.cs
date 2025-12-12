@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using StudentManagementSystem.BusinessLayer.DTOs.AuthDTOs;
 using StudentManagementSystem.BusinessLayer.Services;
 using StudentManagementSystem.DAL.Entities;
+using System.Runtime.ConstrainedExecution;
+using System.Security.Claims;
 
 namespace StudentManagementSystem.API.Controllers
 {
@@ -56,7 +58,8 @@ namespace StudentManagementSystem.API.Controllers
         public async Task<IActionResult> Login(LoginDTO dto)
         {
             var user = await userManager.FindByEmailAsync(dto.Email);
-            if (user == null) return Unauthorized("Invalid credentials");
+            if (user == null) 
+                return Unauthorized("Invalid credentials");
 
             var result = await signInManager.CheckPasswordSignInAsync(user, dto.Password, false);
             if (!result.Succeeded) return Unauthorized("Invalid credentials");
@@ -70,8 +73,6 @@ namespace StudentManagementSystem.API.Controllers
         [HttpGet("me")]
         public async Task<IActionResult> Me()
         {
-            var userId = User.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
-
             if (userId == null)
                 return Unauthorized();
 

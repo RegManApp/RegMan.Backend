@@ -6,8 +6,13 @@ using StudentManagementSystem.BusinessLayer.Services;
 using StudentManagementSystem.DAL;
 using StudentManagementSystem.DAL.DataContext;
 using StudentManagementSystem.DAL.Entities;
+using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 using StudentManagementSystem.API.Seeders;
+using Microsoft.OpenApi.Models;
+//using System.Security.Cryptography.Xml;
+//using Microsoft.IdentityModel.JsonWebTokens;
+using System.Security.Claims;
 
 namespace StudentManagementSystem.API
 {
@@ -71,7 +76,34 @@ namespace StudentManagementSystem.API
             // Controllers + Swagger
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
+            builder.Services.AddSwaggerGen(options=>
+            {
+                options.AddSecurityDefinition(name: JwtBearerDefaults.AuthenticationScheme, securityScheme: new OpenApiSecurityScheme
+                {
+                    BearerFormat = "JWT",
+                    Name = "Authorization",
+                    Type = SecuritySchemeType.Http,
+                    Scheme = JwtBearerDefaults.AuthenticationScheme,
+                    Description = "Enter JWT Bearer token **_only_**",
+                    In = ParameterLocation.Header,
+
+                });
+                options.AddSecurityRequirement(new OpenApiSecurityRequirement
+                    {
+                        {
+
+                            new OpenApiSecurityScheme
+                            {
+                                Reference = new OpenApiReference
+                                {
+                                    Type= ReferenceType.SecurityScheme,
+                                    Id = JwtBearerDefaults.AuthenticationScheme
+                                }
+                            },
+                            Array.Empty<string>()
+                        } 
+                    });
+                });
 
             var app = builder.Build();
 
