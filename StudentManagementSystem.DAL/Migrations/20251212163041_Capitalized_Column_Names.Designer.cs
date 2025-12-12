@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using StudentManagementSystem.DAL.DataContext;
 
@@ -11,9 +12,11 @@ using StudentManagementSystem.DAL.DataContext;
 namespace StudentManagementSystem.DAL.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251212163041_Capitalized_Column_Names")]
+    partial class Capitalized_Column_Names
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -434,7 +437,7 @@ namespace StudentManagementSystem.DAL.Migrations
                     b.Property<int>("CourseId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("InstructorId")
+                    b.Property<int>("InstructorId")
                         .HasColumnType("int");
 
                     b.Property<string>("Semester")
@@ -652,7 +655,9 @@ namespace StudentManagementSystem.DAL.Migrations
 
                     b.HasOne("StudentManagementSystem.DAL.Entities.InstructorProfile", "Instructor")
                         .WithMany()
-                        .HasForeignKey("InstructorId");
+                        .HasForeignKey("InstructorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Course");
 

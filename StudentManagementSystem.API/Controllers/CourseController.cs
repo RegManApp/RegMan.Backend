@@ -20,7 +20,7 @@ namespace StudentManagementSystem.API.Controllers
 
             try 
             {
-                var course = await courseService.GetCourseById(id);
+                var course = await courseService.GetCourseByIdAsync(id);
                 return Ok(course);
             }
             catch (Exception ex) 
@@ -60,7 +60,7 @@ namespace StudentManagementSystem.API.Controllers
         {
             try
             {
-                var createdCourse = await courseService.CreateCourse(courseDTO);
+                var createdCourse = await courseService.CreateCourseAsync(courseDTO);
                 return Ok(createdCourse);
             }
             catch (Exception ex)
@@ -73,7 +73,7 @@ namespace StudentManagementSystem.API.Controllers
         {
             try
             {
-                var result = await courseService.DeleteCourse(id);
+                var result = await courseService.DeleteCourseAsync(id);
                 return Ok(result);
             }
             catch (Exception ex)
@@ -86,7 +86,7 @@ namespace StudentManagementSystem.API.Controllers
         {
             try
             {
-                var updatedCourse = await courseService.UpdateCourse(courseDTO);
+                var updatedCourse = await courseService.UpdateCourseAsync(courseDTO);
                 return Ok(updatedCourse);
             }
             catch (Exception ex)

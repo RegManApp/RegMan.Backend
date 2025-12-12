@@ -1,12 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using StudentManagementSystem.BusinessLayer.DTOs.SectionDTOs;
 
 namespace StudentManagementSystem.BusinessLayer.Contracts
 {
     public interface ISectionService
     {
+        Task<ViewSectionDTO> CreateSectionAsync(CreateSectionDTO sectionDTO);
+
     }
 }

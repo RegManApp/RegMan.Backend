@@ -11,12 +11,14 @@ namespace StudentManagementSystem.BusinessLayer.Contracts
     {
         //Read
         Task<IEnumerable<ViewCourseSummaryDTO>> GetAllCoursesAsync(string? courseName, int? creditHours, string? courseCode, int? courseCategoryId);
-        Task<ViewCourseDetailsDTO> GetCourseById(int id);
+        Task<ViewCourseDetailsDTO> GetCourseByIdAsync(int id);
+        Task<ViewCourseSummaryDTO> GetCourseSummaryByIdAsync(int id);
+
         //Create
-        Task<ViewCourseDetailsDTO> CreateCourse(CreateCourseDTO courseDTO);
+        Task<ViewCourseDetailsDTO> CreateCourseAsync(CreateCourseDTO courseDTO);
         //Update
-        Task<ViewCourseDetailsDTO> UpdateCourse(UpdateCourseDTO courseDTO);
+        Task<ViewCourseDetailsDTO> UpdateCourseAsync(UpdateCourseDTO courseDTO);
         //Delete
-        Task<string> DeleteCourse(int id);
+        Task<string> DeleteCourseAsync(int id);
     }
 }

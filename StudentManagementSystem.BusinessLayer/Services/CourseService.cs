@@ -21,7 +21,7 @@ namespace StudentManagementSystem.BusinessLayer.Services
             this.unitOfWork = unitOfWork;
             courseRepository = unitOfWork.Courses;
         }
-        public async Task<ViewCourseDetailsDTO> CreateCourse(CreateCourseDTO courseDTO)
+        public async Task<ViewCourseDetailsDTO> CreateCourseAsync(CreateCourseDTO courseDTO)
         {
             if (courseDTO == null)
                 throw new ArgumentNullException(nameof(courseDTO));
@@ -55,7 +55,7 @@ namespace StudentManagementSystem.BusinessLayer.Services
         }
 
 
-        public async Task<string> DeleteCourse(int id)
+        public async Task<string> DeleteCourseAsync(int id)
         {
             bool deleted = await unitOfWork.Courses.DeleteAsync(id);
 
@@ -129,7 +129,35 @@ namespace StudentManagementSystem.BusinessLayer.Services
         //}
 
 
-        public async Task<ViewCourseDetailsDTO> GetCourseById(int id)
+        public async Task<ViewCourseSummaryDTO> GetCourseSummaryByIdAsync(int id)
+        {
+            // 1.The WHERE clause
+            Expression<Func<Course, bool>> filterExpression = course =>
+                course.CourseId == id;
+
+            // 2.The SELECT clause, used for projection
+            Expression<Func<Course, ViewCourseSummaryDTO>> projectionExpression = c => new ViewCourseSummaryDTO
+            {
+                CourseId = c.CourseId,
+                CourseName = c.CourseName,
+                CreditHours = c.CreditHours,
+                CourseCode = c.CourseCode,
+            };
+
+            // 3. Call GetFilteredAndProjected method defined previously in the base repository and pass the expressions
+            var projectedQuery = courseRepository.GetFilteredAndProjected(
+                filter: filterExpression,
+                projection: projectionExpression
+            );
+
+            // 4. Execute the query using SingleOrDefaultAsync to get a single result
+            // when getting all courses (a list), use ToListAsync to execute query
+            ViewCourseSummaryDTO? courseDTO = await projectedQuery.SingleOrDefaultAsync(); //will return null if not found
+            if (courseDTO == null)
+                throw new Exception($"Course with ID: {id} not found.");
+            return courseDTO;
+        }
+        public async Task<ViewCourseDetailsDTO> GetCourseByIdAsync(int id)
         {
             // 1.The WHERE clause
             Expression<Func<Course, bool>> filterExpression = course =>
@@ -163,7 +191,7 @@ namespace StudentManagementSystem.BusinessLayer.Services
             return courseDTO;
         }
 
-        public async Task<ViewCourseDetailsDTO> UpdateCourse(UpdateCourseDTO courseDTO)
+        public async Task<ViewCourseDetailsDTO> UpdateCourseAsync(UpdateCourseDTO courseDTO)
         {
             if (courseDTO == null)
                 throw new ArgumentNullException(nameof(courseDTO));

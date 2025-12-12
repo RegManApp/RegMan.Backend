@@ -66,21 +66,21 @@ namespace StudentManagementSystem.DAL.DataContext
 
             // Section → ScheduleSlot
             modelBuilder.Entity<ScheduleSlot>()
-                .HasOne(ss => ss.section)
+                .HasOne(ss => ss.Section)
                 .WithMany(s => s.Slots)
                 .HasForeignKey(ss => ss.SectionId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             // Room → ScheduleSlot
             modelBuilder.Entity<ScheduleSlot>()
-                .HasOne(ss => ss.room)
-                .WithMany(r => r.schedule)
+                .HasOne(ss => ss.Room)
+                .WithMany(r => r.Schedule)
                 .HasForeignKey(ss => ss.RoomId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // TimeSlot → ScheduleSlot
             modelBuilder.Entity<ScheduleSlot>()
-                .HasOne(ss => ss.timeSlot)
+                .HasOne(ss => ss.TimeSlot)
                 .WithMany()
                 .HasForeignKey(ss => ss.TimeSlotId)
                 .OnDelete(DeleteBehavior.Restrict);
@@ -123,7 +123,7 @@ namespace StudentManagementSystem.DAL.DataContext
 
             // TimeSlot DayOfWeek → string
             modelBuilder.Entity<TimeSlot>()
-                .Property(t => t.day)
+                .Property(t => t.Day)
                 .HasConversion<string>();
         }
 

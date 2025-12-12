@@ -7,14 +7,14 @@ namespace StudentManagementSystem.DAL.Entities
     public class ScheduleSlot
     {
         [Key]
-        [Required] public int scheduleSlotId { get; set; }
+        [Required] public int ScheduleSlotId { get; set; }
 
         //[Required]
-        public Section section { get; set; } = null!;
+        public Section Section { get; set; } = null!;
         //[Required]
-        public Room room { get; set; } = null!;
+        public Room Room { get; set; } = null!;
         //[Required]
-        public TimeSlot timeSlot { get; set; } = null!;
+        public TimeSlot TimeSlot { get; set; } = null!;
         public int SectionId { get; set; }
         public int RoomId { get; set; }
         public int TimeSlotId { get; set; }
