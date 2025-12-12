@@ -18,6 +18,8 @@ namespace StudentManagementSystem.DAL.Entities
         public int SectionId { get; set; }
         public int RoomId { get; set; }
         public int TimeSlotId { get; set; }
+        [Required]
+        public SlotType SlotType { get; set; } = SlotType.Lecture; //lecture by default
         // public ScheduleSlot() { }
 
         // public ScheduleSlot(int id, Section section, Room room, TimeSlot timeSlot)
@@ -73,5 +75,11 @@ namespace StudentManagementSystem.DAL.Entities
         //     return sectionInfo + ", " + roomInfo + ", " + timeInfo;
         // }
 
+    }
+    public enum SlotType 
+    {
+        Lecture,
+        Lab,
+        Tutorial
     }
 }

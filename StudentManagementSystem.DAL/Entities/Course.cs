@@ -10,9 +10,10 @@ namespace StudentManagementSystem.DAL.Entities
         [Required]
         public string CourseName { get; set; }
         public int CreditHours { get; set; }
-        public int AvailableSeats { get; set; }
+        //public int AvailableSeats { get; set; }
         public string CourseCode { get; set; }
         public CourseCategory CourseCategory { get; set; }
+        public string Description { get; set; }
 
     }
     public enum CourseCategory

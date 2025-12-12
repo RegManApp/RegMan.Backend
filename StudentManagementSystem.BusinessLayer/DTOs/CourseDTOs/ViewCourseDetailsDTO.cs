@@ -13,9 +13,11 @@ namespace StudentManagementSystem.BusinessLayer.DTOs.CourseDTOs
         public int CourseId { get; set; }
         public string CourseName { get; set; }
         public int CreditHours { get; set; }
-        public int AvailableSeats { get; set; }
+        //public int AvailableSeats { get; set; }
         public string CourseCode { get; set; }
         public int CourseCategoryId { get; set; }
         public string CourseCategoryName { get; set; }
+        public string Description { get; set; }
+
     }
 }

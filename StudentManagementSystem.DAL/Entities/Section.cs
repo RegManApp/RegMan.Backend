@@ -16,6 +16,9 @@ namespace StudentManagementSystem.DAL.Entities
         public int InstructorId { get; set; }
         [Required, ForeignKey("Course")]
         public int CourseId { get; set; }
+        [Required]
+        public int AvailableSeats { get; set; }
+
 
         //navigation properties
         public Course Course { get; set; }
