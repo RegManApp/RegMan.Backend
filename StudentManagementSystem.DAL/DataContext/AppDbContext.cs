@@ -8,6 +8,7 @@ namespace StudentManagementSystem.DAL.DataContext
     public class AppDbContext : IdentityDbContext<BaseUser>
     {
         public DbSet<Course> Courses { get; set; }
+        public DbSet<Cart> Carts { get; set; }
         public DbSet<Section> Sections { get; set; }
         public DbSet<BaseUser> Users { get; set; }
         public DbSet<AdminProfile> Admins { get; set; }
@@ -100,6 +101,11 @@ namespace StudentManagementSystem.DAL.DataContext
              .WithMany(s => s.Enrollments)
              .HasForeignKey(e => e.StudentId)
              .OnDelete(DeleteBehavior.Cascade);
+             modelBuilder.Entity<Cart>()
+              .HasOne(c => c.StudentProfile)
+              .WithOne(sp => sp.Cart)
+              .HasForeignKey<Cart>(c => c.StudentProfileId)
+              .OnDelete(DeleteBehavior.Cascade);
             // ============================
             // 3. UNIQUE CONSTRAINTS
             // ============================
@@ -127,6 +133,26 @@ namespace StudentManagementSystem.DAL.DataContext
             modelBuilder.Entity<TimeSlot>()
                 .Property(t => t.Day)
                 .HasConversion<string>();
+            // ============================
+            modelBuilder.Entity<Cart>()
+               .HasMany(c => c.ScheduleSlots)
+               .WithMany()
+               .UsingEntity<Dictionary<string, object>>(
+                   "CartScheduleSlot",
+                   j => j
+                       .HasOne<ScheduleSlot>()
+                       .WithMany()
+                       .HasForeignKey("ScheduleSlotId")
+                       .OnDelete(DeleteBehavior.Cascade),
+                   j => j
+                       .HasOne<Cart>()
+                       .WithMany()
+                       .HasForeignKey("CartId")
+                       .OnDelete(DeleteBehavior.Cascade),
+                   j =>
+                   {
+                       j.HasKey("CartId", "ScheduleSlotId");
+                   });
         }
 
 
