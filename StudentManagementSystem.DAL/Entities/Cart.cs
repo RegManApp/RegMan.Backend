@@ -11,6 +11,6 @@ namespace StudentManagementSystem.DAL.Entities
         public int CartId { get; set; }
         public int StudentProfileId { get; set; }
         public StudentProfile StudentProfile { get; set; }
-        public ICollection<ScheduleSlot> ScheduleSlots { get; set; } = new List<ScheduleSlot>();
+        public ICollection<CartItem> CartItems { get; set; } = new List<CartItem>();
     }
 }

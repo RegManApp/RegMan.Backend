@@ -9,6 +9,7 @@ namespace StudentManagementSystem.DAL.DataContext
     {
         public DbSet<Course> Courses { get; set; }
         public DbSet<Cart> Carts { get; set; }
+        public DbSet<CartItem> CartItems { get; set; }
         public DbSet<Section> Sections { get; set; }
         public DbSet<BaseUser> Users { get; set; }
         public DbSet<AdminProfile> Admins { get; set; }
@@ -107,6 +108,26 @@ namespace StudentManagementSystem.DAL.DataContext
               .HasForeignKey<Cart>(c => c.StudentProfileId)
               .OnDelete(DeleteBehavior.Cascade);
             // ============================
+            // Cart → CartItem (ONE-TO-MANY)
+            // ============================
+
+            modelBuilder.Entity<Cart>()
+                .HasMany(c => c.CartItems)
+                .WithOne(ci => ci.Cart)
+                .HasForeignKey(ci => ci.CartId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // ============================
+            // CartItem → ScheduleSlot (MANY-TO-ONE)
+            // ============================
+
+            modelBuilder.Entity<CartItem>()
+                .HasOne(ci => ci.ScheduleSlot)
+                .WithMany()
+                .HasForeignKey(ci => ci.ScheduleSlotId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ============================
             // 3. UNIQUE CONSTRAINTS
             // ============================
 
@@ -114,6 +135,11 @@ namespace StudentManagementSystem.DAL.DataContext
             modelBuilder.Entity<Enrollment>()
                 .HasIndex(e => new { e.StudentId, e.SectionId })
                 .IsUnique();
+            // Prevent same ScheduleSlot from being added twice to same Cart
+            modelBuilder.Entity<CartItem>()
+                .HasIndex(ci => new { ci.CartId, ci.ScheduleSlotId })
+                .IsUnique();
+
 
             // ============================
             // 4. ENUM CONVERSIONS
@@ -133,26 +159,7 @@ namespace StudentManagementSystem.DAL.DataContext
             modelBuilder.Entity<TimeSlot>()
                 .Property(t => t.Day)
                 .HasConversion<string>();
-            // ============================
-            modelBuilder.Entity<Cart>()
-               .HasMany(c => c.ScheduleSlots)
-               .WithMany()
-               .UsingEntity<Dictionary<string, object>>(
-                   "CartScheduleSlot",
-                   j => j
-                       .HasOne<ScheduleSlot>()
-                       .WithMany()
-                       .HasForeignKey("ScheduleSlotId")
-                       .OnDelete(DeleteBehavior.Cascade),
-                   j => j
-                       .HasOne<Cart>()
-                       .WithMany()
-                       .HasForeignKey("CartId")
-                       .OnDelete(DeleteBehavior.Cascade),
-                   j =>
-                   {
-                       j.HasKey("CartId", "ScheduleSlotId");
-                   });
+         
         }
 
 

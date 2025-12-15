@@ -10,6 +10,7 @@ namespace StudentManagementSystem.DAL.DataContext
         private readonly AppDbContext dbcontext;
         //private readonly UserManager<BaseUser> userManager;
         private Lazy<IBaseRepository<AcademicPlan>> academicPlans { get; set; }
+        private Lazy<IBaseRepository<CartItem>> cartItems { get; set; }
         private Lazy<IBaseRepository<Cart>> carts { get; set; }
         private Lazy<IBaseRepository<AdminProfile>> adminProfiles { get; set; }
         private Lazy<IBaseRepository<InstructorProfile>> instructorProfiles { get; set; }
@@ -26,6 +27,7 @@ namespace StudentManagementSystem.DAL.DataContext
             dbcontext = context;
             //this.userManager = userManager;
             academicPlans = new Lazy<IBaseRepository<AcademicPlan>>(() => new BaseRepository<AcademicPlan>(dbcontext));
+            cartItems = new Lazy<IBaseRepository<CartItem>>(() => new BaseRepository<CartItem>(dbcontext));
             carts = new Lazy<IBaseRepository<Cart>>(() => new BaseRepository<Cart>(dbcontext));
             adminProfiles = new Lazy<IBaseRepository<AdminProfile>>(() => new BaseRepository<AdminProfile>(dbcontext));
             instructorProfiles = new Lazy<IBaseRepository<InstructorProfile>>(() => new BaseRepository<InstructorProfile>(dbcontext));
@@ -40,6 +42,7 @@ namespace StudentManagementSystem.DAL.DataContext
         }
         public IBaseRepository<Course> Courses => courses.Value;
         public IBaseRepository<Cart> Carts => carts.Value;
+        public IBaseRepository<CartItem> CartItems => cartItems.Value;
         public IBaseRepository<Room> Rooms => rooms.Value;
         public IBaseRepository<TimeSlot> TimeSlots => timeSlots.Value;
         public IBaseRepository<Section> Sections => sections.Value;

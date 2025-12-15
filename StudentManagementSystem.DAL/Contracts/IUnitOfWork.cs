@@ -9,6 +9,7 @@ namespace StudentManagementSystem.DAL.Contracts
 
         public IBaseRepository<Course> Courses { get; }
         public IBaseRepository<Cart> Carts { get; }
+        public IBaseRepository<CartItem> CartItems { get; }
         public IBaseRepository<Room> Rooms { get; }
         public IBaseRepository<TimeSlot> TimeSlots { get; }
         public IBaseRepository<Section> Sections { get; }
