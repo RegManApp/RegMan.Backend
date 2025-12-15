@@ -60,7 +60,14 @@ namespace StudentManagementSystem.BusinessLayer.Services
             var timeSlot = await unitOfWork.TimeSlots.GetByIdAsync(dto.TimeSlotId)
                 ?? throw new Exception("TimeSlot not found.");
 
-            var instructor = await unitOfWork.InstructorProfiles.GetByIdAsync(dto.InstructorId)
+            //var instructor = await unitOfWork.InstructorProfiles.GetByIdAsync(dto.InstructorId)
+            //    ?? throw new Exception("Instructor not found.");
+            var instructor = await unitOfWork
+                .InstructorProfiles
+                .GetAllAsQueryable()
+                .AsNoTracking()
+                .Include(ip => ip.User)
+                .FirstOrDefaultAsync(ip => ip.InstructorId == dto.InstructorId)
                 ?? throw new Exception("Instructor not found.");
 
             // =========================

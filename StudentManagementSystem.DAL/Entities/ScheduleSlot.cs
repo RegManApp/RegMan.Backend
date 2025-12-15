@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace StudentManagementSystem.DAL.Entities
 {
@@ -20,6 +21,7 @@ namespace StudentManagementSystem.DAL.Entities
         public int TimeSlotId { get; set; }
 
         [Required]
+        [ForeignKey("Instructor")]
         public int InstructorId { get; set; }
 
         [Required]
