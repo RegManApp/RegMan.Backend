@@ -76,7 +76,7 @@ namespace StudentManagementSystem.DAL.DataContext
             // Room → ScheduleSlot
             modelBuilder.Entity<ScheduleSlot>()
                 .HasOne(ss => ss.Room)
-                .WithMany(r => r.Schedule)
+                .WithMany(r => r.ScheduleSlots)
                 .HasForeignKey(ss => ss.RoomId)
                 .OnDelete(DeleteBehavior.Restrict);
 
