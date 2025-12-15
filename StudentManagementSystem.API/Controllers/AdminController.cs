@@ -12,20 +12,15 @@ namespace StudentManagementSystem.API.Controllers
     public class AdminController : ControllerBase
     {
         private readonly UserManager<BaseUser> _userManager;
-        private readonly RoleManager<IdentityRole> roleManager;
 
-        public AdminController(UserManager<BaseUser> userManager, RoleManager<IdentityRole> roleManager)
+        public AdminController(UserManager<BaseUser> userManager)
         {
             _userManager = userManager;
-            this.roleManager = roleManager;
-
         }
 
         [HttpPost("create-user")]
         public async Task<IActionResult> CreateUser(CreateUserDTO dto)
         {
-            if (!await roleManager.RoleExistsAsync(dto.Role))
-                return BadRequest("Role does not exist");
 
             var user = new BaseUser
             {
