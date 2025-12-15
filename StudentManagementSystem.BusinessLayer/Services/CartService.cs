@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using StudentManagementSystem.BusinessLayer.Contracts;
+using StudentManagementSystem.BusinessLayer.DTOs.CartDTOs;
 using StudentManagementSystem.DAL.Contracts;
 using StudentManagementSystem.DAL.Entities;
 using System.Security.Claims;
@@ -13,82 +14,99 @@ namespace StudentManagementSystem.BusinessLayer.Services
         private readonly IBaseRepository<StudentProfile> studentRepository;
         private readonly IBaseRepository<Cart> cartRepository;
         private readonly IBaseRepository<CartItem> cartItemRepository;
-        private readonly IHttpContextAccessor httpContextAccessor;
         public CartService(IUnitOfWork unitOfWork, IHttpContextAccessor httpContextAccessor)
         {
             this.unitOfWork = unitOfWork;
             studentRepository = unitOfWork.StudentProfiles;
             cartRepository = unitOfWork.Carts;
             cartItemRepository = unitOfWork.CartItems;
-            this.httpContextAccessor = httpContextAccessor;
         }
-        // =========================
-        // Helpers
-        // =========================
-        private (string userId, string email) GetUserInfo()
-        {
-            var user = httpContextAccessor.HttpContext?.User
-                ?? throw new Exception("User context not found.");
-
-            var userId = user.FindFirstValue(ClaimTypes.NameIdentifier)
-                ?? throw new Exception("UserId not found.");
-
-            var email = user.FindFirstValue(ClaimTypes.Email)
-                ?? "unknown@email.com";
-
-            return (userId, email);
-        }
+        //CREATE
         public async Task AddToCartAsync(int studentId, int scheduleSlotId)
         {
 
             //check if valid in db
-            StudentProfile? student = await studentRepository.GetByIdAsync(studentId);
-            if (student == null)
-            {
-                throw new InvalidOperationException($"Student with ID {studentId} does not exist.");
-            }
-            DAL.Entities.Cart? cart = await cartRepository.GetByIdAsync(student.CartId);
-            if (cart == null)
-            {
-                throw new InvalidOperationException($"Cart for student ID {studentId} does not exist.");
-            }
-            ScheduleSlot? slot = await unitOfWork.ScheduleSlots.GetByIdAsync(scheduleSlotId);
-            if (slot == null)
-            {
+            int cartId = await ValidateStudentAndCart(studentId); //method checks both student and cart existence
+
+            bool slotExists = await unitOfWork.ScheduleSlots
+            .GetAllAsQueryable()
+            .AsNoTracking()
+            .AnyAsync(s => s.ScheduleSlotId == scheduleSlotId);
+
+            if (!slotExists)
                 throw new InvalidOperationException($"Schedule slot with ID {scheduleSlotId} does not exist.");
+            
+            
+            //preventing adding same schedule slot multiple times
+            bool alreadyInCart = await cartItemRepository.GetAllAsQueryable().AsNoTracking().AnyAsync(ci => ci.CartId == cartId && ci.ScheduleSlotId == scheduleSlotId);
+            if (alreadyInCart)
+            {
+                throw new InvalidOperationException($"Schedule slot with ID {scheduleSlotId} is already in the cart.");
             }
             CartItem cartItem = new CartItem
             {
-                CartId = cart.CartId,
+                CartId = cartId,
                 ScheduleSlotId = scheduleSlotId
             };
             await cartItemRepository.AddAsync(cartItem);
             await unitOfWork.SaveChangesAsync();
+            return true;
         }
-        public async Task RemoveFromCartAsync(int studentId, int cartItemId)
+        //DELETE
+        public async Task<ViewCartDTO> RemoveFromCartAsync(int studentId, int cartItemId)
         {
             //check if valid in db
-            StudentProfile? student = await studentRepository.GetByIdAsync(studentId);
-            if (student == null)
+            int cartId = await ValidateStudentAndCart(studentId); //method checks both student and cart existence
+            bool cartItemExists = await cartItemRepository.GetAllAsQueryable().AsNoTracking().AnyAsync(ci => ci.CartId == cartId && ci.CartItemId == cartItemId);
+
+             if (!cartItemExists)
+            
+                throw new InvalidOperationException($"Cart item with ID {cartItemId} does not exist in the cart.");
+           
+            bool deleted = await cartItemRepository.DeleteAsync(cartItemId);
+            if (!deleted)
+            {
+                throw new Exception($"Failed to delete Cart item with ID {cartItemId}.");
+            }
+            await unitOfWork.SaveChangesAsync();
+            return await ViewCartAsync(studentId);
+        }
+        //READ (view)
+        public async Task<ViewCartDTO> ViewCartAsync(int studentId)
+        {
+            //check if valid in db
+            int cartId = await ValidateStudentAndCart(studentId); //method checks both student and cart existence
+            List<ViewCartItemDTO> cartItems = await cartItemRepository.GetAllAsQueryable()
+                .AsNoTracking()
+                .Where(ci => ci.CartId == cartId)
+                .Select(ci=> new ViewCartItemDTO {
+                    CartItemId = ci.CartItemId,
+                    ScheduleSlotId = ci.ScheduleSlotId,
+                    SectionName =$"{ ci.ScheduleSlot.Section.Course.CourseName} - Section {ci.ScheduleSlot.Section.SectionId}",
+                    TimeSlot = $"{ci.ScheduleSlot.TimeSlot.StartTime} - {ci.ScheduleSlot.TimeSlot.EndTime}",
+                    Room = $"{ci.ScheduleSlot.Room.Building} - {ci.ScheduleSlot.Room.RoomNumber}"
+
+                })
+                .ToListAsync();
+            var viewCartDTO = new ViewCartDTO
+            {
+                CartId = cartId,
+                CartItems = cartItems
+            };
+            return viewCartDTO;
+        }
+        private async Task<int> ValidateStudentAndCart(int studentId) 
+        {
+            StudentProfile? studentWithCart = await studentRepository.GetAllAsQueryable().AsNoTracking().Include(s => s.Cart).FirstOrDefaultAsync(s => s.StudentId == studentId);
+            if (studentWithCart == null)
             {
                 throw new InvalidOperationException($"Student with ID {studentId} does not exist.");
             }
-            DAL.Entities.Cart? cart = await cartRepository.GetByIdAsync(student.CartId);
-            if (cart == null)
+            if (studentWithCart.Cart == null)
             {
                 throw new InvalidOperationException($"Cart for student ID {studentId} does not exist.");
             }
-            var cartItem = await cartItemRepository.GetAllAsQueryable().AsNoTracking().Where(ci => ci.CartId == cart.CartId && ci.CartItemId == cartItemId).FirstOrDefaultAsync();
-            if (cartItem == null)
-            {
-                throw new InvalidOperationException($"Cart item with Schedule Slot ID {cartItem.ScheduleSlotId} does not exist in the cart.");
-            }
-            bool deleted = await cartItemRepository.DeleteAsync(cartItem.CartItemId);
-            if (!deleted)
-            {
-                throw new Exception($"Failed to delete Cart item with ID {cartItem.CartItemId}.");
-            }
-            await unitOfWork.SaveChangesAsync();
+            return studentWithCart.CartId;
         }
     }
 }

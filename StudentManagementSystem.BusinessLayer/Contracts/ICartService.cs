@@ -1,4 +1,5 @@
-﻿using System;
+﻿using StudentManagementSystem.BusinessLayer.DTOs.CartDTOs;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,7 +9,8 @@ namespace StudentManagementSystem.BusinessLayer.Contracts
 {
     public interface ICartService
     {
-        Task RemoveFromCartAsync(int studentId, int cartItemId);
+        Task<ViewCartDTO> RemoveFromCartAsync(int studentId, int cartItemId);
         Task AddToCartAsync(int studentId, int scheduleSlotId);
+        Task<ViewCartDTO> ViewCartAsync(int studentId);
     }
 }
