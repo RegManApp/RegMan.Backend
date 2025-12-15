@@ -10,15 +10,13 @@ namespace StudentManagementSystem.BusinessLayer.Contracts
     public interface ICourseService
     {
         //Read
-        Task<IEnumerable<ViewCourseSummaryDTO>> GetAllCoursesAsync(string? courseName, int? creditHours, string? courseCode, int? courseCategoryId);
-        Task<ViewCourseDetailsDTO> GetCourseByIdAsync(int id);
-        Task<ViewCourseSummaryDTO> GetCourseSummaryByIdAsync(int id);
-
+        Task<IEnumerable<ViewCourseSummaryDTO>> GetAllCoursesAsync(string? courseName, int? creditHours, int? availableSeats, string? courseCode, int? courseCategoryId);
+        Task<ViewCourseDetailsDTO> GetCourseById(int id);
         //Create
-        Task<ViewCourseDetailsDTO> CreateCourseAsync(CreateCourseDTO courseDTO);
+        Task<ViewCourseDetailsDTO> CreateCourse(CreateCourseDTO courseDTO);
         //Update
-        Task<ViewCourseDetailsDTO> UpdateCourseAsync(UpdateCourseDTO courseDTO);
+        Task<ViewCourseDetailsDTO> UpdateCourse(UpdateCourseDTO courseDTO);
         //Delete
-        Task<string> DeleteCourseAsync(int id);
+        Task<string> DeleteCourse(int id);
     }
 }
