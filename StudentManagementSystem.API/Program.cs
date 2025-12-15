@@ -10,6 +10,8 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 using StudentManagementSystem.API.Seeders;
 using Microsoft.OpenApi.Models;
+using StudentManagementSystem.API.Middleware;
+
 //using System.Security.Cryptography.Xml;
 //using Microsoft.IdentityModel.JsonWebTokens;
 using System.Security.Claims;
@@ -81,7 +83,7 @@ namespace StudentManagementSystem.API
             // Controllers + Swagger
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen(options=>
+            builder.Services.AddSwaggerGen(options =>
             {
                 options.AddSecurityDefinition(name: JwtBearerDefaults.AuthenticationScheme, securityScheme: new OpenApiSecurityScheme
                 {
@@ -106,9 +108,9 @@ namespace StudentManagementSystem.API
                                 }
                             },
                             Array.Empty<string>()
-                        } 
+                        }
                     });
-                });
+            });
 
             var app = builder.Build();
 
@@ -128,6 +130,8 @@ namespace StudentManagementSystem.API
                 app.UseSwagger();
                 app.UseSwaggerUI();
             }
+
+            app.UseMiddleware<GlobalExceptionMiddleware>();
 
             app.UseHttpsRedirection();
 

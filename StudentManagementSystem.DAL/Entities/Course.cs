@@ -13,7 +13,7 @@ namespace StudentManagementSystem.DAL.Entities
         //public int AvailableSeats { get; set; }
         public string CourseCode { get; set; }
         public CourseCategory CourseCategory { get; set; }
-        public string Description { get; set; }
+        public string? Description { get; set; }
 
     }
     public enum CourseCategory
