@@ -29,6 +29,11 @@ namespace StudentManagementSystem.API
             builder.Services.AddDataBaseLayer(builder.Configuration);
             builder.Services.AddBusinessServices();
 
+            // ==================
+            // HttpContext Accessor (IMPORTANT for Audit Logs)
+            // ==================
+            builder.Services.AddHttpContextAccessor();
+
             // ========
             // Identity
             // ========
@@ -76,7 +81,7 @@ namespace StudentManagementSystem.API
             });
 
             // ==================
-            // Authorization
+            // Authorization Policies
             // ==================
             builder.Services.AddAuthorization(options =>
             {
