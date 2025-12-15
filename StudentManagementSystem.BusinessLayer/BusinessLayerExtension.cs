@@ -20,6 +20,8 @@ namespace StudentManagementSystem.BusinessLayer
             services.AddScoped<IAuditLogService, AuditLogService>();
             services.AddScoped<IRoomService, RoomService>();
             services.AddScoped<ITimeSlotService, TimeSlotService>();
+            services.AddScoped<IInstructorService, InstructorService>();
+
 
             return services;
         }
