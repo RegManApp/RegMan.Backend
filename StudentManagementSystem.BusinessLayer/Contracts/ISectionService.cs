@@ -1,4 +1,5 @@
-﻿using StudentManagementSystem.BusinessLayer.DTOs.SectionDTOs;
+﻿using Microsoft.VisualBasic;
+using StudentManagementSystem.BusinessLayer.DTOs.SectionDTOs;
 
 namespace StudentManagementSystem.BusinessLayer.Contracts
 {
@@ -7,7 +8,8 @@ namespace StudentManagementSystem.BusinessLayer.Contracts
         Task<ViewSectionDTO> CreateSectionAsync(CreateSectionDTO sectionDTO);
         Task<ViewSectionDTO> GetSectionByIdAsync(int id);
         Task<ViewSectionDTO> UpdateSectionAsync(UpdateSectionDTO sectionDTO);
-        Task DeleteSectionAsync(int id);
+        Task<bool> DeleteSectionAsync(int id);
+        Task <IEnumerable<ViewSectionDTO>> GetAllSectionsAsync( string? semester, DateTime? year,int? instructorId, int? courseId, int? seats);
 
     }
 }

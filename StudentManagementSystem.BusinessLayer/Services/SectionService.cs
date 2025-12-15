@@ -57,12 +57,18 @@ namespace StudentManagementSystem.BusinessLayer.Services
             }
 
             //if the instructor ID is not null, check if they exist in DB
-
-            //InstructorProfile? instructor = await instructorRepository.GetAllAsQueryable().AsNoTracking().Where(i=>i.InstructorId==sectionDTO.InstructorId).Include(i => i.User.FullName).SingleOrDefaultAsync();
-            //if (instructor == null) //if not found & not exist in DB
-            //{
-            //    throw new ArgumentNullException(nameof(sectionDTO.InstructorId));
-            //}
+            //get instructor name for return dto
+            string? instructor = string.Empty; //here i get the instructor name from the table instead of including the whole entity
+            if (sectionDTO.InstructorId.HasValue) 
+            {
+                instructor = await instructorRepository.GetAllAsQueryable().AsNoTracking().Where(i => i.InstructorId == sectionDTO.InstructorId).Select(i => i.User.FullName).SingleOrDefaultAsync();
+                //InstructorProfile? instructor = await instructorRepository.GetAllAsQueryable().AsNoTracking().Where(i => i.InstructorId == sectionDTO.InstructorId).Include(i => i.User).SingleOrDefaultAsync();
+                if (instructor == null) //if not found & not exist in DB
+                {
+                    throw new ArgumentNullException(nameof(sectionDTO.InstructorId));
+                }
+            }
+           
 
             //if the course ID is not null, check if it exists in DB
             Course? course = await courseRepository.GetAllAsQueryable().AsNoTracking().Where(c => c.CourseId == sectionDTO.CourseId).SingleOrDefaultAsync();
@@ -86,17 +92,18 @@ namespace StudentManagementSystem.BusinessLayer.Services
             //add and save
             await sectionRepository.AddAsync(section);
             await unitOfWork.SaveChangesAsync();
+            //COMMENTED TEMPORARILY TILL SCHEDULE SLOT IS IMPLEMENTED
 
-            ScheduleSlot scheduleSlot = new ScheduleSlot //default lecture slot, admins can enter details later
-            {
-                RoomId = sectionDTO.RoomId,
-                TimeSlotId = sectionDTO.TimeSlotId,
-                Section = section,
-                SectionId = section.SectionId,
-                SlotType = SlotType.Lecture
-            };
-            await scheduleSlotsRepository.AddAsync(scheduleSlot);
-            await unitOfWork.SaveChangesAsync();
+            //ScheduleSlot scheduleSlot = new ScheduleSlot //default lecture slot, admins can enter details later
+            //{
+            //    RoomId = sectionDTO.RoomId,
+            //    TimeSlotId = sectionDTO.TimeSlotId,
+            //    Section = section,
+            //    SectionId = section.SectionId,
+            //    SlotType = SlotType.Lecture
+            //};
+            //await scheduleSlotsRepository.AddAsync(scheduleSlot);
+            //await unitOfWork.SaveChangesAsync();
 
             //return mapped dto
             return new ViewSectionDTO
@@ -106,7 +113,8 @@ namespace StudentManagementSystem.BusinessLayer.Services
                 Year = section.Year,
                 InstructorId = section.InstructorId,
                 AvailableSeats = section.AvailableSeats,
-                InstructorName = section.Instructor.User.FullName,
+                InstructorName = instructor,
+                //InstructorName = section.Instructor.User.FullName,
                 CourseSummary = await courseService.GetCourseSummaryByIdAsync(section.CourseId),
                 ScheduleSlots = section.Slots?.Select(slot => new ViewScheduleSlotDTO
                 {
@@ -234,14 +242,69 @@ namespace StudentManagementSystem.BusinessLayer.Services
             await unitOfWork.SaveChangesAsync();
             return await GetSectionByIdAsync(sectionDTO.SectionId);
         }
-        public async Task DeleteSectionAsync(int id) //should be cascade delete and delete all related schedule slots as well
+        public async Task<bool> DeleteSectionAsync(int id) //should be cascade delete and delete all related schedule slots as well
         {
             var deleted = await sectionRepository.DeleteAsync(id);
             if (!deleted)
                 throw new KeyNotFoundException($"Section with ID {id} does not exist or not found.");
             await unitOfWork.SaveChangesAsync();
+            return true;
 
 
         }
+        public async Task<IEnumerable<ViewSectionDTO>> GetAllSectionsAsync(string? semester, DateTime? year, int? instructorId, int? courseId, int? seats) 
+        {
+            var query = sectionRepository.GetAllAsQueryable().AsNoTracking();
+            if (!string.IsNullOrEmpty(semester))
+            {
+                query = query.Where(s => s.Semester == semester);
+            }
+            if (year.HasValue)
+            {
+                query = query.Where(s => s.Year == year.Value);
+            }
+            if (instructorId.HasValue)
+            {
+                query = query.Where(s => s.InstructorId == instructorId.Value);
+            }
+            if (courseId.HasValue)
+            {
+                query = query.Where(s => s.CourseId == courseId.Value);
+            }
+            if (seats.HasValue && seats>=0 && seats<=60)
+            {
+                query = query.Where(s => s.AvailableSeats == seats.Value);
+            }
+            var result = await query.Select(s => new ViewSectionDTO
+            {
+                SectionId = s.SectionId,
+                Semester = s.Semester,
+                Year = s.Year,
+                InstructorId = s.InstructorId,
+                InstructorName = s.Instructor.User.FullName,
+                AvailableSeats = s.AvailableSeats,
+                CourseSummary = new ViewCourseSummaryDTO
+                {
+                    CourseCode = s.Course.CourseCode,
+                    CourseId = s.Course.CourseId,
+                    CourseName = s.Course.CourseName,
+                    CreditHours = s.Course.CreditHours
+                },
+                ScheduleSlots = s.Slots.Select(slot => new ViewScheduleSlotDTO
+                {
+                    ScheduleSlotId = slot.ScheduleSlotId,
+                    SlotType = slot.SlotType,
+                    SectionId = slot.SectionId,
+                    RoomId = slot.RoomId,
+                    RoomNumber = slot.Room.RoomNumber,
+                    TimeSlotId = slot.TimeSlotId,
+                    Day = slot.TimeSlot.Day,
+                    StartTime = slot.TimeSlot.StartTime,
+                    EndTime = slot.TimeSlot.EndTime
+                }).ToList()
+            }).ToListAsync();
+            return result;
+        }
+
     }
 }

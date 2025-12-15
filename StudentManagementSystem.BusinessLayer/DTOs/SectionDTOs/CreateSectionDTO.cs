@@ -24,7 +24,6 @@ namespace StudentManagementSystem.BusinessLayer.DTOs.SectionDTOs
 
 
  //lecture slot data
-        public int SectionId { get; set; }
         public int RoomId { get; set; }
         public int TimeSlotId { get; set; }
         public SlotType SlotType { get; set; } = SlotType.Lecture;
