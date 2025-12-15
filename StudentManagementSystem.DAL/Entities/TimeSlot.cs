@@ -5,10 +5,10 @@ namespace StudentManagementSystem.DAL.Entities
     public class TimeSlot
     {
         [Key]
-        public int TimeSlotId { get; set; }
-        [Required] public DayOfWeek Day { get; set; }
-        [Required] public TimeSpan StartTime { get; set; }
-        [Required] public TimeSpan EndTime { get; set; }
+        public int timeSlotId { get; set; }
+        [Required] public DayOfWeek day { get; set; }
+        [Required] public TimeSpan startTime { get; set; }
+        [Required] public TimeSpan endTime { get; set; }
 
         // public TimeSlot() { }
 

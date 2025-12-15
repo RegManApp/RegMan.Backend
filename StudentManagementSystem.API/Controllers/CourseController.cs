@@ -20,7 +20,7 @@ namespace StudentManagementSystem.API.Controllers
 
             try 
             {
-                var course = await courseService.GetCourseByIdAsync(id);
+                var course = await courseService.GetCourseById(id);
                 return Ok(course);
             }
             catch (Exception ex) 
@@ -30,11 +30,11 @@ namespace StudentManagementSystem.API.Controllers
 
         }
         [HttpGet]
-        public async Task<IActionResult> GetAllCoursesAsync([FromQuery] string? courseName, [FromQuery] int? creditHours, [FromQuery] string? courseCode, [FromQuery] int? courseCategoryId)
+        public async Task<IActionResult> GetAllCoursesAsync([FromQuery] string? courseName, [FromQuery] int? creditHours, [FromQuery] int? availableSeats, [FromQuery] string? courseCode, [FromQuery] int? courseCategoryId)
         {
             try
             {
-                var courses = await courseService.GetAllCoursesAsync(courseName, creditHours, courseCode, courseCategoryId);
+                var courses = await courseService.GetAllCoursesAsync(courseName, creditHours, availableSeats, courseCode, courseCategoryId);
                 return Ok(courses);
             }
             catch (Exception ex)
@@ -42,25 +42,12 @@ namespace StudentManagementSystem.API.Controllers
                 return Ok(ex.Message);
             }
         }
-        //[HttpGet]
-        //public async Task<IActionResult> GetAllCoursesAsync([FromQuery] string? courseName, [FromQuery] int? creditHours, [FromQuery] int? availableSeats, [FromQuery] string? courseCode, [FromQuery] int? courseCategoryId)
-        //{
-        //    try
-        //    {
-        //        var courses = await courseService.GetAllCoursesAsync(courseName, creditHours, availableSeats, courseCode, courseCategoryId);
-        //        return Ok(courses);
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        return Ok(ex.Message);
-        //    }
-        //}
         [HttpPost]
         public async Task<IActionResult> CreateCourseAsync([FromBody] CreateCourseDTO courseDTO)
         {
             try
             {
-                var createdCourse = await courseService.CreateCourseAsync(courseDTO);
+                var createdCourse = await courseService.CreateCourse(courseDTO);
                 return Ok(createdCourse);
             }
             catch (Exception ex)
@@ -73,7 +60,7 @@ namespace StudentManagementSystem.API.Controllers
         {
             try
             {
-                var result = await courseService.DeleteCourseAsync(id);
+                var result = await courseService.DeleteCourse(id);
                 return Ok(result);
             }
             catch (Exception ex)
@@ -86,7 +73,7 @@ namespace StudentManagementSystem.API.Controllers
         {
             try
             {
-                var updatedCourse = await courseService.UpdateCourseAsync(courseDTO);
+                var updatedCourse = await courseService.UpdateCourse(courseDTO);
                 return Ok(updatedCourse);
             }
             catch (Exception ex)

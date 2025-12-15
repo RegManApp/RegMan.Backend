@@ -5,15 +5,15 @@ namespace StudentManagementSystem.DAL.Entities
     public class Room
     {
         [Key]
-        [Required] public int RoomId { get; set; }
+        [Required] public int roomId { get; set; }
 
-        [Required] public string Building { get; set; } = null!;
+        [Required] public string building { get; set; } = null!;
 
-        [Required] public string RoomNumber { get; set; } = null!;
+        [Required] public string roomNumber { get; set; } = null!;
 
-        [Required] public int Capacity { get; set; }
+        [Required] public int capacity { get; set; }
 
-        public List<ScheduleSlot> Schedule { get; set; } = new();
+        public List<ScheduleSlot> schedule { get; set; } = new();
 
         // public Room() { }
 

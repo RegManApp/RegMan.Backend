@@ -21,7 +21,7 @@ namespace StudentManagementSystem.BusinessLayer.Services
             this.unitOfWork = unitOfWork;
             courseRepository = unitOfWork.Courses;
         }
-        public async Task<ViewCourseDetailsDTO> CreateCourseAsync(CreateCourseDTO courseDTO)
+        public async Task<ViewCourseDetailsDTO> CreateCourse(CreateCourseDTO courseDTO)
         {
             if (courseDTO == null)
                 throw new ArgumentNullException(nameof(courseDTO));
@@ -31,10 +31,9 @@ namespace StudentManagementSystem.BusinessLayer.Services
             {
                 CourseName = courseDTO.CourseName,
                 CreditHours = courseDTO.CreditHours,
-                //AvailableSeats = courseDTO.AvailableSeats,
+                AvailableSeats = courseDTO.AvailableSeats,
                 CourseCode = courseDTO.CourseCode,
-                CourseCategory = (CourseCategory)courseDTO.CourseCategoryId,
-                Description = courseDTO.Description
+                CourseCategory = (CourseCategory)courseDTO.CourseCategoryId
             };
 
             // 2. Save entity
@@ -46,8 +45,7 @@ namespace StudentManagementSystem.BusinessLayer.Services
                 CourseId = course.CourseId,
                 CourseName = course.CourseName,
                 CreditHours = course.CreditHours,
-                Description= course.Description,
-                //AvailableSeats = course.AvailableSeats,
+                AvailableSeats = course.AvailableSeats,
                 CourseCode = course.CourseCode,
                 CourseCategoryId = (int)course.CourseCategory,
                 CourseCategoryName = course.CourseCategory.ToString()
@@ -55,7 +53,7 @@ namespace StudentManagementSystem.BusinessLayer.Services
         }
 
 
-        public async Task<string> DeleteCourseAsync(int id)
+        public async Task<string> DeleteCourse(int id)
         {
             bool deleted = await unitOfWork.Courses.DeleteAsync(id);
 
@@ -67,7 +65,7 @@ namespace StudentManagementSystem.BusinessLayer.Services
             return $"Course with ID {id} deleted successfully.";
         }
 
-        public async Task<IEnumerable<ViewCourseSummaryDTO>> GetAllCoursesAsync(string? courseName, int? creditHours, string? courseCode, int? courseCategoryId)
+        public async Task<IEnumerable<ViewCourseSummaryDTO>> GetAllCoursesAsync(string? courseName, int? creditHours, int? availableSeats, string? courseCode, int? courseCategoryId)
         {
             var query = unitOfWork.Courses.GetAllAsQueryable();
 
@@ -76,6 +74,9 @@ namespace StudentManagementSystem.BusinessLayer.Services
 
             if (creditHours.HasValue)
                 query = query.Where(c => c.CreditHours == creditHours.Value);
+
+            if (availableSeats.HasValue)
+                query = query.Where(c => c.AvailableSeats == availableSeats.Value);
 
             if (!string.IsNullOrWhiteSpace(courseCode))
                 query = query.Where(c => c.CourseCode.Contains(courseCode));
@@ -95,69 +96,9 @@ namespace StudentManagementSystem.BusinessLayer.Services
 
             return result;
         }
-        // Removed AvailableSeats filter from GetAllCoursesAsync method, this is the old version with AvailableSeats filter:
-        //public async Task<IEnumerable<ViewCourseSummaryDTO>> GetAllCoursesAsync(string? courseName, int? creditHours, int? availableSeats, string? courseCode, int? courseCategoryId)
-        //{
-        //    var query = unitOfWork.Courses.GetAllAsQueryable();
-
-        //    if (!string.IsNullOrWhiteSpace(courseName))
-        //        query = query.Where(c => c.CourseName.Contains(courseName));
-
-        //    if (creditHours.HasValue)
-        //        query = query.Where(c => c.CreditHours == creditHours.Value);
-
-        //    if (availableSeats.HasValue)
-        //        query = query.Where(c => c.AvailableSeats == availableSeats.Value);
-
-        //    if (!string.IsNullOrWhiteSpace(courseCode))
-        //        query = query.Where(c => c.CourseCode.Contains(courseCode));
-
-        //    if (courseCategoryId.HasValue)
-        //        query = query.Where(c => (int)c.CourseCategory == courseCategoryId.Value);
-
-        //    var result = await query
-        //        .Select(c => new ViewCourseSummaryDTO
-        //        {
-        //            CourseId = c.CourseId,
-        //            CourseName = c.CourseName,
-        //            CreditHours = c.CreditHours,
-        //            CourseCode = c.CourseCode
-        //        })
-        //        .ToListAsync();
-
-        //    return result;
-        //}
 
 
-        public async Task<ViewCourseSummaryDTO> GetCourseSummaryByIdAsync(int id)
-        {
-            // 1.The WHERE clause
-            Expression<Func<Course, bool>> filterExpression = course =>
-                course.CourseId == id;
-
-            // 2.The SELECT clause, used for projection
-            Expression<Func<Course, ViewCourseSummaryDTO>> projectionExpression = c => new ViewCourseSummaryDTO
-            {
-                CourseId = c.CourseId,
-                CourseName = c.CourseName,
-                CreditHours = c.CreditHours,
-                CourseCode = c.CourseCode,
-            };
-
-            // 3. Call GetFilteredAndProjected method defined previously in the base repository and pass the expressions
-            var projectedQuery = courseRepository.GetFilteredAndProjected(
-                filter: filterExpression,
-                projection: projectionExpression
-            );
-
-            // 4. Execute the query using SingleOrDefaultAsync to get a single result
-            // when getting all courses (a list), use ToListAsync to execute query
-            ViewCourseSummaryDTO? courseDTO = await projectedQuery.SingleOrDefaultAsync(); //will return null if not found
-            if (courseDTO == null)
-                throw new Exception($"Course with ID: {id} not found.");
-            return courseDTO;
-        }
-        public async Task<ViewCourseDetailsDTO> GetCourseByIdAsync(int id)
+        public async Task<ViewCourseDetailsDTO> GetCourseById(int id)
         {
             // 1.The WHERE clause
             Expression<Func<Course, bool>> filterExpression = course =>
@@ -169,8 +110,7 @@ namespace StudentManagementSystem.BusinessLayer.Services
                 CourseId = c.CourseId,
                 CourseName = c.CourseName,
                 CreditHours = c.CreditHours,
-                //AvailableSeats = c.AvailableSeats,
-                Description= c.Description,
+                AvailableSeats = c.AvailableSeats,
                 CourseCode = c.CourseCode,
                 CourseCategoryId = (int)c.CourseCategory,
                 CourseCategoryName = c.CourseCategory.ToString()
@@ -191,7 +131,7 @@ namespace StudentManagementSystem.BusinessLayer.Services
             return courseDTO;
         }
 
-        public async Task<ViewCourseDetailsDTO> UpdateCourseAsync(UpdateCourseDTO courseDTO)
+        public async Task<ViewCourseDetailsDTO> UpdateCourse(UpdateCourseDTO courseDTO)
         {
             if (courseDTO == null)
                 throw new ArgumentNullException(nameof(courseDTO));
@@ -202,7 +142,7 @@ namespace StudentManagementSystem.BusinessLayer.Services
                 throw new Exception($"Course with ID {courseDTO.CourseId} not found.");
 
             existingCourse.CreditHours = courseDTO.CreditHours;
-            //existingCourse.AvailableSeats = courseDTO.AvailableSeats;
+            existingCourse.AvailableSeats = courseDTO.AvailableSeats;
             existingCourse.CourseCode = courseDTO.CourseCode;
             existingCourse.CourseCategory = (CourseCategory)courseDTO.CourseCategoryId;
 
@@ -213,8 +153,7 @@ namespace StudentManagementSystem.BusinessLayer.Services
                 CourseId = existingCourse.CourseId,
                 CourseName = existingCourse.CourseName,
                 CreditHours = existingCourse.CreditHours,
-                //AvailableSeats = existingCourse.AvailableSeats,
-                Description= existingCourse.Description,
+                AvailableSeats = existingCourse.AvailableSeats,
                 CourseCode = existingCourse.CourseCode,
                 CourseCategoryId = (int)existingCourse.CourseCategory,
                 CourseCategoryName = existingCourse.CourseCategory.ToString()
