@@ -7,5 +7,7 @@ namespace StudentManagementSystem.BusinessLayer.Contracts
         Task<ViewSectionDTO> CreateSectionAsync(CreateSectionDTO sectionDTO);
         Task<ViewSectionDTO> GetSectionByIdAsync(int id);
         Task<ViewSectionDTO> UpdateSectionAsync(UpdateSectionDTO sectionDTO);
+        Task DeleteSectionAsync(int id);
+
     }
 }
