@@ -23,6 +23,7 @@ namespace StudentManagementSystem.DAL.DataContext
         public DbSet<Room> Rooms { get; set; }
         public DbSet<AcademicPlan> AcademicPlans { get; set; }
         public DbSet<AuditLog> AuditLogs { get; set; }
+        public DbSet<RefreshToken> RefreshTokens { get; set; }
 
         public AppDbContext(DbContextOptions<AppDbContext> options)
             : base(options)
@@ -103,11 +104,11 @@ namespace StudentManagementSystem.DAL.DataContext
              .WithMany(s => s.Enrollments)
              .HasForeignKey(e => e.StudentId)
              .OnDelete(DeleteBehavior.Cascade);
-             modelBuilder.Entity<Cart>()
-              .HasOne(c => c.StudentProfile)
-              .WithOne(sp => sp.Cart)
-              .HasForeignKey<Cart>(c => c.StudentProfileId)
-              .OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<Cart>()
+             .HasOne(c => c.StudentProfile)
+             .WithOne(sp => sp.Cart)
+             .HasForeignKey<Cart>(c => c.StudentProfileId)
+             .OnDelete(DeleteBehavior.Cascade);
             // ============================
             // Cart → CartItem (ONE-TO-MANY)
             // ============================
@@ -156,7 +157,7 @@ namespace StudentManagementSystem.DAL.DataContext
             modelBuilder.Entity<TimeSlot>()
                 .Property(t => t.Day)
                 .HasConversion<string>();
-         
+
         }
     }
 }

@@ -21,6 +21,8 @@ namespace StudentManagementSystem.DAL.DataContext
         private Lazy<IBaseRepository<Section>> sections { get; set; }
         private Lazy<IBaseRepository<TimeSlot>> timeSlots { get; set; }
         //private Lazy<IBaseRepository<Transcript>> transcripts { get; set; }
+        private Lazy<IBaseRepository<RefreshToken>> refreshTokens;
+
         public UnitOfWork(AppDbContext context)
         {
             dbcontext = context;
@@ -32,12 +34,16 @@ namespace StudentManagementSystem.DAL.DataContext
             instructorProfiles = new Lazy<IBaseRepository<InstructorProfile>>(() => new BaseRepository<InstructorProfile>(dbcontext));
             studentProfiles = new Lazy<IBaseRepository<StudentProfile>>(() => new BaseRepository<StudentProfile>(dbcontext));
             courses = new Lazy<IBaseRepository<Course>>(() => new BaseRepository<Course>(dbcontext));
-            rooms = new Lazy<IBaseRepository<Room>>(()=> new BaseRepository<Room>(dbcontext));
+            rooms = new Lazy<IBaseRepository<Room>>(() => new BaseRepository<Room>(dbcontext));
             enrollments = new Lazy<IBaseRepository<Enrollment>>(() => new BaseRepository<Enrollment>(dbcontext));
             scheduleSlots = new Lazy<IBaseRepository<ScheduleSlot>>(() => new BaseRepository<ScheduleSlot>(dbcontext));
             sections = new Lazy<IBaseRepository<Section>>(() => new BaseRepository<Section>(dbcontext));
             timeSlots = new Lazy<IBaseRepository<TimeSlot>>(() => new BaseRepository<TimeSlot>(dbcontext));
             //transcripts = new Lazy<IBaseRepository<Transcript>>(() => new BaseRepository<Transcript>(dbcontext));
+            refreshTokens = new Lazy<IBaseRepository<RefreshToken>>(
+    () => new BaseRepository<RefreshToken>(dbcontext)
+);
+
         }
 
         public IBaseRepository<Course> Courses => courses.Value;
@@ -48,11 +54,13 @@ namespace StudentManagementSystem.DAL.DataContext
         public IBaseRepository<Section> Sections => sections.Value;
         public IBaseRepository<ScheduleSlot> ScheduleSlots => scheduleSlots.Value;
         //public IBaseRepository<Transcript> Transcripts => transcripts.Value;
-        public IBaseRepository<Enrollment> Enrollments => enrollments.Value; 
+        public IBaseRepository<Enrollment> Enrollments => enrollments.Value;
         public IBaseRepository<AdminProfile> AdminProfiles => adminProfiles.Value;
         public IBaseRepository<InstructorProfile> InstructorProfiles => instructorProfiles.Value;
         public IBaseRepository<StudentProfile> StudentProfiles => studentProfiles.Value;
         public IBaseRepository<AcademicPlan> AcademicPlans => academicPlans.Value;
+        public IBaseRepository<RefreshToken> RefreshTokens => refreshTokens.Value;
+
 
         public async Task SaveChangesAsync()
         {

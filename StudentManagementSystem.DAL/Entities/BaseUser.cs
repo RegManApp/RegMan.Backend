@@ -9,11 +9,11 @@ namespace StudentManagementSystem.DAL.Entities
         [Required]
         [StringLength(100, MinimumLength = 2)]
         public string FullName { get; set; } = null!;
-        
+
         [Required]
         [StringLength(200)]
         public string Address { get; set; } = null!;
-        
+
         [Required]
         [StringLength(50)]
         public string Role { get; set; } = null!;
@@ -21,5 +21,7 @@ namespace StudentManagementSystem.DAL.Entities
         public StudentProfile? StudentProfile { get; set; }
         public AdminProfile? AdminProfile { get; set; }
         public InstructorProfile? InstructorProfile { get; set; }
+        public ICollection<RefreshToken> RefreshTokens { get; set; } = new HashSet<RefreshToken>();
+
     }
 }

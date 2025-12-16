@@ -18,7 +18,10 @@ namespace StudentManagementSystem.DAL.Contracts
 
         public IBaseRepository<Cart> Carts { get; }
         public IBaseRepository<CartItem> CartItems { get; }
-        
+
+        IBaseRepository<RefreshToken> RefreshTokens { get; }
+
+
         Task SaveChangesAsync();
     }
 }
