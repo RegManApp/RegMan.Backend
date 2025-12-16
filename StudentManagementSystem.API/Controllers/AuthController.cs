@@ -1,9 +1,12 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using StudentManagementSystem.API.Common;
 using StudentManagementSystem.BusinessLayer.Contracts;
 using StudentManagementSystem.BusinessLayer.DTOs.AuthDTOs;
 using StudentManagementSystem.BusinessLayer.Services;
+using StudentManagementSystem.DAL.Contracts;
 using StudentManagementSystem.DAL.Entities;
 using System.Security.Claims;
 
@@ -18,19 +21,22 @@ namespace StudentManagementSystem.API.Controllers
         private readonly RoleManager<IdentityRole> roleManager;
         private readonly TokenService tokenService;
         private readonly IAuditLogService auditLogService;
+        private readonly IUnitOfWork unitOfWork;
 
         public AuthController(
             UserManager<BaseUser> userManager,
             SignInManager<BaseUser> signInManager,
             RoleManager<IdentityRole> roleManager,
             TokenService tokenService,
-            IAuditLogService auditLogService)
+            IAuditLogService auditLogService,
+            IUnitOfWork unitOfWork)
         {
             this.userManager = userManager;
             this.signInManager = signInManager;
             this.roleManager = roleManager;
             this.tokenService = tokenService;
             this.auditLogService = auditLogService;
+            this.unitOfWork = unitOfWork;
         }
 
         // =========================
@@ -84,38 +90,48 @@ namespace StudentManagementSystem.API.Controllers
         }
 
         // =========================
-        // Login (NO AUDIT LOG)
+        // Login
         // =========================
         [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginDTO dto)
+        public async Task<IActionResult> Login(LoginDTO dto)
         {
             var user = await userManager.FindByEmailAsync(dto.Email);
             if (user == null)
-            {
-                return Unauthorized(ApiResponse<string>.FailureResponse(
-                    "Invalid credentials",
-                    StatusCodes.Status401Unauthorized
-                ));
-            }
+                return Unauthorized("Invalid credentials");
 
-            var result = await signInManager.CheckPasswordSignInAsync(user, dto.Password, false);
-            if (!result.Succeeded)
-            {
-                return Unauthorized(ApiResponse<string>.FailureResponse(
-                    "Invalid credentials",
-                    StatusCodes.Status401Unauthorized
-                ));
-            }
+            var valid = await userManager.CheckPasswordAsync(user, dto.Password);
+            if (!valid)
+                return Unauthorized("Invalid credentials");
 
             var roles = await userManager.GetRolesAsync(user);
-            var token = tokenService.GenerateToken(user, roles);
 
-            return Ok(ApiResponse<string>.SuccessResponse(token));
+            var accessToken = tokenService.GenerateAccessToken(user, roles);
+
+            var refreshToken = tokenService.GenerateRefreshToken();
+            var hashed = tokenService.HashToken(refreshToken);
+
+            var refreshEntity = new RefreshToken
+            {
+                TokenHash = hashed,
+                UserId = user.Id,
+                ExpiresAt = DateTime.UtcNow.AddDays(7),
+                Device = Request.Headers["User-Agent"].ToString()
+            };
+
+            await unitOfWork.RefreshTokens.AddAsync(refreshEntity);
+            await unitOfWork.SaveChangesAsync();
+
+            return Ok(new LoginResponseDTO
+            {
+                AccessToken = accessToken,
+                RefreshToken = refreshToken
+            });
         }
 
         // =========================
         // Me
         // =========================
+        [Authorize]
         [HttpGet("me")]
         public async Task<IActionResult> Me()
         {
@@ -143,6 +159,71 @@ namespace StudentManagementSystem.API.Controllers
                 user.Email,
                 user.Role
             }));
+        }
+
+        // =========================
+        // Refresh Token
+        // =========================
+        [HttpPost("refresh")]
+        public async Task<IActionResult> Refresh(RefreshTokenRequestDTO dto)
+        {
+            var hash = tokenService.HashToken(dto.RefreshToken);
+
+            var storedToken = await unitOfWork.RefreshTokens
+                .GetAllAsQueryable()
+                .Include(r => r.User)
+                .FirstOrDefaultAsync(r =>
+                    r.TokenHash == hash &&
+                    !r.IsRevoked &&
+                    r.ExpiresAt > DateTime.UtcNow);
+
+            if (storedToken == null)
+                return Unauthorized("Invalid refresh token");
+
+            storedToken.IsRevoked = true;
+
+            var roles = await userManager.GetRolesAsync(storedToken.User);
+
+            var newAccess = tokenService.GenerateAccessToken(storedToken.User, roles);
+            var newRefresh = tokenService.GenerateRefreshToken();
+
+            await unitOfWork.RefreshTokens.AddAsync(new RefreshToken
+            {
+                TokenHash = tokenService.HashToken(newRefresh),
+                UserId = storedToken.UserId,
+                ExpiresAt = DateTime.UtcNow.AddDays(7),
+                Device = storedToken.Device
+            });
+
+            await unitOfWork.SaveChangesAsync();
+
+            return Ok(new LoginResponseDTO
+            {
+                AccessToken = newAccess,
+                RefreshToken = newRefresh
+            });
+        }
+
+        // =========================
+        // Logout
+        // =========================
+        [Authorize]
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout(RefreshTokenRequestDTO dto)
+        {
+            var hash = tokenService.HashToken(dto.RefreshToken);
+
+            var token = await unitOfWork.RefreshTokens
+                .GetAllAsQueryable()
+                .FirstOrDefaultAsync(r => r.TokenHash == hash);
+
+            if (token != null)
+            {
+                token.IsRevoked = true;
+                await unitOfWork.SaveChangesAsync();
+            }
+
+            return Ok("Logged out successfully");
         }
     }
 }
