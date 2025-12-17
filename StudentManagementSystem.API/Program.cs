@@ -22,6 +22,28 @@ namespace StudentManagementSystem.API
         public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+            
+            // ==================
+            // CORS Policy
+            // ==================
+            var allowedOrigins = new[]
+            {
+                "https://regman.app",
+                "https://www.regman.app",
+                "https://regman.pages.dev",
+                "http://localhost:5173"
+            };
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("AllowRegman", policy =>
+                {
+                    policy.WithOrigins(allowedOrigins)
+                        .AllowAnyHeader()
+                        .AllowAnyMethod()
+                        .AllowCredentials();
+                });
+            });
+            
 
             // =========================
             // Database + Business Layer
@@ -187,6 +209,8 @@ namespace StudentManagementSystem.API
 
             app.UseHttpsRedirection();
 
+            app.UseCors("AllowRegman");
+            
             app.UseAuthentication();
             app.UseAuthorization();
 
