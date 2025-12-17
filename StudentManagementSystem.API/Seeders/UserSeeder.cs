@@ -7,8 +7,13 @@ namespace StudentManagementSystem.API.Seeders
     {
         public static async Task SeedAdminAsync(UserManager<BaseUser> userManager)
         {
-            string email = "admin@system.com";
-            string password = "Admin123!";
+            string? email = Environment.GetEnvironmentVariable("ADMIN_EMAIL");
+            string? password = Environment.GetEnvironmentVariable("ADMIN_PASSWORD");
+
+            if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
+            {
+                return;
+            }
 
             var admin = await userManager.FindByEmailAsync(email);
 
