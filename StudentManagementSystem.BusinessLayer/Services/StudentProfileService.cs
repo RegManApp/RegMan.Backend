@@ -104,5 +104,39 @@ namespace StudentManagementSystem.BusinessLayer.Services
             return student;
         }
 
+        public async Task<List<ViewStudentProfileDTO>> GetAllStudentsAsync(int? GPA, int? CompletedCredits, string? AcademicPlanId) 
+        {
+            var query = studentRepository.GetAllAsQueryable().AsNoTracking();
+            if (GPA.HasValue)
+            {
+                query = query.Where(s => s.GPA >= GPA.Value);
+            }
+            if (CompletedCredits.HasValue)
+            {
+                query = query.Where(s => s.CompletedCredits >= CompletedCredits.Value);
+            }
+            if (!string.IsNullOrEmpty(AcademicPlanId))
+            {
+                query = query.Where(s => s.AcademicPlanId == AcademicPlanId);
+            }
+            var students = await query
+                .Select(st => new ViewStudentProfileDTO
+                {
+                    StudentId = st.StudentId,
+                    FullName = st.User.FullName,
+                    Address = st.User.Address,
+                    FamilyContact = st.FamilyContact,
+                    CompletedCredits = st.CompletedCredits,
+                    RegisteredCredits = st.RegisteredCredits,
+                    GPA = st.GPA,
+                    AcademicPlanId = st.AcademicPlanId,
+                    RemainingCredits = st.AcademicPlan.TotalCreditsRequired - (st.CompletedCredits + st.RegisteredCredits)
+                })
+                .ToListAsync();
+            if(students is null)
+                throw new KeyNotFoundException("No students found with the specified criteria.");
+            return students;
+        }
+
     }
 }

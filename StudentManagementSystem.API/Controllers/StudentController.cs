@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using StudentManagementSystem.API.Common;
 using StudentManagementSystem.BusinessLayer.Contracts;
 using StudentManagementSystem.BusinessLayer.DTOs.StudentDTOs;
+using StudentManagementSystem.DAL.Entities;
 
 namespace StudentManagementSystem.API.Controllers
 {
@@ -29,6 +30,12 @@ namespace StudentManagementSystem.API.Controllers
         {
             var result = await studentProfileService.GetProfileByIdAsync(id);
             return Ok(ApiResponse<ViewStudentProfileDTO>.SuccessResponse(result));
+        }  
+        [HttpGet("students")]
+        public async Task<IActionResult> GetStudentsFilteredAsync([FromBody]int? GPA, [FromBody]int? CompletedCredits, [FromBody] string? AcademicPlanId) 
+        {
+            List<ViewStudentProfileDTO> result = await studentProfileService.GetAllStudentsAsync(GPA, CompletedCredits, AcademicPlanId);
+            return Ok(ApiResponse<List<ViewStudentProfileDTO>>.SuccessResponse(result));
         }  
     }
 }

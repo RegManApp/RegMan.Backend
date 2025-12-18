@@ -11,5 +11,6 @@ namespace StudentManagementSystem.BusinessLayer.Contracts
     {
         Task<ViewStudentProfileDTO> CreateProfileAsync(CreateStudentDTO studentDTO);
         Task<ViewStudentProfileDTO> GetProfileByIdAsync(int id);
+        Task<List<ViewStudentProfileDTO>> GetAllStudentsAsync(int? GPA, int? CompletedCredits, string? AcademicPlanId);
     }
 }
