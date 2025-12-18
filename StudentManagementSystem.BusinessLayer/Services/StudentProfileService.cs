@@ -170,11 +170,21 @@ namespace StudentManagementSystem.BusinessLayer.Services
             };
         }
         //Change password
-        public async Task<bool> ChangeStudentPassword(ChangePasswordDTO passwordDTO) 
+        public async Task ChangeStudentPassword(ChangePasswordDTO passwordDTO) 
         {
-            
-        } 
-        
+            if (passwordDTO.NewPassword != passwordDTO.ConfirmPassword)
+                throw new Exception("New password does not match.");
+            BaseUser? user = await userManager.FindByEmailAsync(passwordDTO.Email);
+            if(user is null)
+                throw new Exception($"A student with the email {passwordDTO.Email} does not exist!");
+            bool validPassword = await userManager.CheckPasswordAsync(user,passwordDTO.OldPassword);
+            if(!validPassword)
+                throw new Exception($"Invalid credentials.");
+            //no errors anymore
+            user.PasswordHash= passwordDTO.NewPassword;
+
+        }
+
 
     }
 }

@@ -32,17 +32,24 @@ namespace StudentManagementSystem.API.Controllers
             return Ok(ApiResponse<ViewStudentProfileDTO>.SuccessResponse(result));
         }  
         [HttpGet("students")]
-        public async Task<IActionResult> GetStudentsFilteredAsync([FromBody]int? GPA, [FromBody]int? CompletedCredits, [FromBody] string? AcademicPlanId) 
+        public async Task<IActionResult> GetStudentsFilteredAsync(int? GPA, int? CompletedCredits,  string? AcademicPlanId) 
         {
             List<ViewStudentProfileDTO> result = await studentProfileService.GetAllStudentsAsync(GPA, CompletedCredits, AcademicPlanId);
             return Ok(ApiResponse<List<ViewStudentProfileDTO>>.SuccessResponse(result));
         }
         [Authorize(Roles = "Admin")]
-        [HttpPut]
+        [HttpPut("update-student")]
         public async Task<IActionResult> UpdateStudentAsync(UpdateStudentProfileDTO studentProfileDTO) 
         {
-            var result = await studentProfileService.UpdateProfileAsync(studentProfileDTO);
+            var result = await studentProfileService.UpdateProfileAdminAsync(studentProfileDTO);
             return Ok(ApiResponse<ViewStudentProfileDTO>.SuccessResponse(result));
+        }  
+        [Authorize(Roles = "Student")]
+        [HttpPut]
+        public async Task<IActionResult> ChangeStudentPassword(ChangePasswordDTO passwordDTO) 
+        {
+            await studentProfileService.ChangeStudentPassword(passwordDTO);
+            return Ok(ApiResponse<string>.SuccessResponse("Password changed successfully!"));
         }  
     }
 }
