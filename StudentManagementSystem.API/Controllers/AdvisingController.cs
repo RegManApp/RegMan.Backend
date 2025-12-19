@@ -161,7 +161,7 @@ namespace StudentManagementSystem.API.Controllers
                 await notificationService.CreateEnrollmentApprovedNotificationAsync(
                     enrollment.Student.UserId,
                     enrollment.Section.Course.CourseName,
-                    enrollment.Section.SectionName
+                    enrollment.Section.SectionName ?? "Section"
                 );
             }
 
@@ -214,7 +214,7 @@ namespace StudentManagementSystem.API.Controllers
                 await notificationService.CreateEnrollmentDeclinedNotificationAsync(
                     enrollment.Student.UserId,
                     enrollment.Section.Course.CourseName,
-                    enrollment.Section.SectionName,
+                    enrollment.Section.SectionName ?? "Section",
                     dto.Reason
                 );
             }

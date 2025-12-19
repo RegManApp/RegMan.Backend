@@ -116,30 +116,41 @@ namespace StudentManagementSystem.API.Controllers
         [HttpGet("course-stats")]
         public async Task<IActionResult> GetCourseStats()
         {
-            var sections = await unitOfWork.Sections.GetAllAsQueryable()
-                .Include(s => s.Course)
-                .Include(s => s.Enrollments)
-                .Where(s => s.Course != null)
-                .ToListAsync();
+            try
+            {
+                var sections = await unitOfWork.Sections.GetAllAsQueryable()
+                    .Include(s => s.Course)
+                    .Include(s => s.Enrollments)
+                    .Where(s => s.Course != null)
+                    .ToListAsync();
 
-            var courseStats = sections
-                .GroupBy(s => new { s.Course!.CourseId, s.Course.CourseCode, s.Course.CourseName, s.Course.CreditHours })
-                .Select(g => new
-                {
-                    g.Key.CourseId,
-                    g.Key.CourseCode,
-                    g.Key.CourseName,
-                    Credits = g.Key.CreditHours,
-                    SectionCount = g.Count(),
-                    TotalEnrollments = g.SelectMany(s => s.Enrollments).Count(),
-                    ActiveEnrollments = g.SelectMany(s => s.Enrollments).Count(e => e.Status == Status.Enrolled),
-                    PendingEnrollments = g.SelectMany(s => s.Enrollments).Count(e => e.Status == Status.Pending)
-                })
-                .OrderByDescending(c => c.TotalEnrollments)
-                .Take(10)
-                .ToList();
+                if (!sections.Any())
+                    return Ok(ApiResponse<object>.SuccessResponse(new List<object>()));
 
-            return Ok(ApiResponse<object>.SuccessResponse(courseStats));
+                var courseStats = sections
+                    .Where(s => s.Course != null)
+                    .GroupBy(s => new { s.Course!.CourseId, s.Course.CourseCode, s.Course.CourseName, s.Course.CreditHours })
+                    .Select(g => new
+                    {
+                        g.Key.CourseId,
+                        g.Key.CourseCode,
+                        g.Key.CourseName,
+                        Credits = g.Key.CreditHours,
+                        SectionCount = g.Count(),
+                        TotalEnrollments = g.SelectMany(s => s.Enrollments ?? new List<Enrollment>()).Count(),
+                        ActiveEnrollments = g.SelectMany(s => s.Enrollments ?? new List<Enrollment>()).Count(e => e.Status == Status.Enrolled),
+                        PendingEnrollments = g.SelectMany(s => s.Enrollments ?? new List<Enrollment>()).Count(e => e.Status == Status.Pending)
+                    })
+                    .OrderByDescending(c => c.TotalEnrollments)
+                    .Take(10)
+                    .ToList();
+
+                return Ok(ApiResponse<object>.SuccessResponse(courseStats));
+            }
+            catch
+            {
+                return Ok(ApiResponse<object>.SuccessResponse(new List<object>()));
+            }
         }
 
         // =========================
@@ -197,37 +208,48 @@ namespace StudentManagementSystem.API.Controllers
         [HttpGet("instructor-stats")]
         public async Task<IActionResult> GetInstructorStats()
         {
-            var sections = await unitOfWork.Sections.GetAllAsQueryable()
-                .Include(s => s.Instructor)
-                    .ThenInclude(i => i!.User)
-                .Include(s => s.Enrollments)
-                .Where(s => s.InstructorId != null && s.Instructor != null && s.Instructor.User != null)
-                .ToListAsync();
+            try
+            {
+                var sections = await unitOfWork.Sections.GetAllAsQueryable()
+                    .Include(s => s.Instructor)
+                        .ThenInclude(i => i!.User)
+                    .Include(s => s.Enrollments)
+                    .Where(s => s.InstructorId != null)
+                    .ToListAsync();
 
-            var instructorStats = sections
-                .GroupBy(s => new
-                {
-                    s.Instructor!.InstructorId,
-                    FullName = s.Instructor.User?.FullName ?? "Unknown",
-                    s.Instructor.Title,
-                    s.Instructor.Degree,
-                    s.Instructor.Department
-                })
-                .Select(g => new
-                {
-                    Id = g.Key.InstructorId,
-                    g.Key.FullName,
-                    g.Key.Title,
-                    Degree = g.Key.Degree.ToString(),
-                    g.Key.Department,
-                    SectionsCount = g.Count(),
-                    TotalStudents = g.SelectMany(s => s.Enrollments).Count(e => e.Status == Status.Enrolled)
-                })
-                .OrderByDescending(i => i.TotalStudents)
-                .Take(10)
-                .ToList();
+                if (!sections.Any())
+                    return Ok(ApiResponse<object>.SuccessResponse(new List<object>()));
 
-            return Ok(ApiResponse<object>.SuccessResponse(instructorStats));
+                var instructorStats = sections
+                    .Where(s => s.Instructor != null && s.Instructor.User != null)
+                    .GroupBy(s => new
+                    {
+                        s.Instructor!.InstructorId,
+                        FullName = s.Instructor.User?.FullName ?? "Unknown",
+                        s.Instructor.Title,
+                        s.Instructor.Degree,
+                        s.Instructor.Department
+                    })
+                    .Select(g => new
+                    {
+                        Id = g.Key.InstructorId,
+                        g.Key.FullName,
+                        g.Key.Title,
+                        Degree = g.Key.Degree.ToString(),
+                        g.Key.Department,
+                        SectionsCount = g.Count(),
+                        TotalStudents = g.SelectMany(s => s.Enrollments ?? new List<Enrollment>()).Count(e => e.Status == Status.Enrolled)
+                    })
+                    .OrderByDescending(i => i.TotalStudents)
+                    .Take(10)
+                    .ToList();
+
+                return Ok(ApiResponse<object>.SuccessResponse(instructorStats));
+            }
+            catch
+            {
+                return Ok(ApiResponse<object>.SuccessResponse(new List<object>()));
+            }
         }
 
         // =========================
@@ -309,6 +331,113 @@ namespace StudentManagementSystem.API.Controllers
                 Summary = summary,
                 Sections = sections.Take(20)
             }));
+        }
+
+        // =========================
+        // System Summary for Admin
+        // =========================
+        [HttpGet("system-summary")]
+        public async Task<IActionResult> GetSystemSummary()
+        {
+            try
+            {
+                var today = DateTime.UtcNow.Date;
+                var lastWeek = today.AddDays(-7);
+                var lastMonth = today.AddDays(-30);
+
+                // User statistics
+                var totalUsers = await userManager.Users.CountAsync();
+                var totalStudents = await userManager.Users.CountAsync(u => u.Role == "Student");
+                var totalInstructors = await userManager.Users.CountAsync(u => u.Role == "Instructor");
+                var totalAdmins = await userManager.Users.CountAsync(u => u.Role == "Admin");
+
+                // Enrollment statistics
+                var pendingEnrollments = await unitOfWork.Enrollments.GetAllAsQueryable()
+                    .CountAsync(e => e.Status == Status.Pending);
+                var activeEnrollments = await unitOfWork.Enrollments.GetAllAsQueryable()
+                    .CountAsync(e => e.Status == Status.Enrolled);
+                var enrollmentsThisWeek = await unitOfWork.Enrollments.GetAllAsQueryable()
+                    .CountAsync(e => e.EnrolledAt >= lastWeek);
+                var enrollmentsThisMonth = await unitOfWork.Enrollments.GetAllAsQueryable()
+                    .CountAsync(e => e.EnrolledAt >= lastMonth);
+
+                // Course & Section stats
+                var totalCourses = await unitOfWork.Courses.GetAllAsQueryable().CountAsync();
+                var totalSections = await unitOfWork.Sections.GetAllAsQueryable().CountAsync();
+
+                // Office Hour statistics
+                var pendingOfficeHourBookings = await unitOfWork.Context.Set<OfficeHourBooking>()
+                    .CountAsync(b => b.Status == BookingStatus.Pending);
+                var todaysOfficeHours = await unitOfWork.Context.Set<OfficeHour>()
+                    .CountAsync(oh => oh.Date.Date == today && oh.Status != OfficeHourStatus.Cancelled);
+
+                // Notification statistics
+                var unreadNotifications = await unitOfWork.Context.Set<Notification>().CountAsync(n => !n.IsRead);
+
+                // Recent activities (last 10)
+                var recentEnrollments = await unitOfWork.Enrollments.GetAllAsQueryable()
+                    .Include(e => e.Student).ThenInclude(s => s!.User)
+                    .Include(e => e.Section).ThenInclude(s => s!.Course)
+                    .OrderByDescending(e => e.EnrolledAt)
+                    .Take(10)
+                    .Select(e => new
+                    {
+                        Type = "Enrollment",
+                        Timestamp = e.EnrolledAt,
+                        Description = $"{(e.Student != null && e.Student.User != null ? e.Student.User.FullName : "Unknown")} enrolled in {(e.Section != null && e.Section.Course != null ? e.Section.Course.CourseCode : "Unknown")}",
+                        Status = e.Status.ToString()
+                    })
+                    .ToListAsync();
+
+                // Instructor breakdown by degree
+                var instructorsByDegree = await userManager.Users
+                    .Include(u => u.InstructorProfile)
+                    .Where(u => u.Role == "Instructor" && u.InstructorProfile != null)
+                    .GroupBy(u => u.InstructorProfile!.Degree)
+                    .Select(g => new { Degree = g.Key.ToString(), Count = g.Count() })
+                    .ToListAsync();
+
+                return Ok(ApiResponse<object>.SuccessResponse(new
+                {
+                    Users = new
+                    {
+                        Total = totalUsers,
+                        Students = totalStudents,
+                        Instructors = totalInstructors,
+                        Admins = totalAdmins,
+                        InstructorsByDegree = instructorsByDegree
+                    },
+                    Enrollments = new
+                    {
+                        Pending = pendingEnrollments,
+                        Active = activeEnrollments,
+                        ThisWeek = enrollmentsThisWeek,
+                        ThisMonth = enrollmentsThisMonth
+                    },
+                    Courses = new
+                    {
+                        Total = totalCourses,
+                        Sections = totalSections
+                    },
+                    OfficeHours = new
+                    {
+                        PendingBookings = pendingOfficeHourBookings,
+                        TodaysSessions = todaysOfficeHours
+                    },
+                    Notifications = new
+                    {
+                        Unread = unreadNotifications
+                    },
+                    RecentActivity = recentEnrollments
+                }));
+            }
+            catch
+            {
+                return Ok(ApiResponse<object>.SuccessResponse(new
+                {
+                    Error = "Unable to load system summary"
+                }));
+            }
         }
     }
 }

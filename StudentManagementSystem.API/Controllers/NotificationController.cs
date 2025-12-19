@@ -75,12 +75,24 @@ namespace StudentManagementSystem.API.Controllers
         [HttpGet("unread-count")]
         public async Task<IActionResult> GetUnreadCount()
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            try
+            {
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            var count = await _context.Notifications
-                .CountAsync(n => n.UserId == userId && !n.IsRead);
+                if (string.IsNullOrEmpty(userId))
+                    return Ok(new { count = 0 });
 
-            return Ok(new { count });
+                var count = await _context.Notifications
+                    .Where(n => n.UserId == userId && !n.IsRead)
+                    .CountAsync();
+
+                return Ok(new { count });
+            }
+            catch
+            {
+                // Log the exception in production
+                return Ok(new { count = 0 });
+            }
         }
 
         /// <summary>

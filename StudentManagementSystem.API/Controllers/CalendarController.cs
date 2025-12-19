@@ -80,12 +80,12 @@ namespace StudentManagementSystem.API.Controllers
                 // Get student's enrolled sections schedule
                 var enrollments = await _context.Enrollments
                     .Include(e => e.Section)
-                        .ThenInclude(s => s.Course)
+                        .ThenInclude(s => s!.Course)
                     .Include(e => e.Section)
-                        .ThenInclude(s => s.Slots)
+                        .ThenInclude(s => s!.Slots)
                             .ThenInclude(sl => sl.TimeSlot)
                     .Include(e => e.Section)
-                        .ThenInclude(s => s.Slots)
+                        .ThenInclude(s => s!.Slots)
                             .ThenInclude(sl => sl.Room)
                     .Where(e => e.StudentId == student.StudentId &&
                                (e.Status == Status.Enrolled || e.Status == Status.Pending))

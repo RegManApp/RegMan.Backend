@@ -1,9 +1,12 @@
-﻿using StudentManagementSystem.DAL.Entities;
+﻿using Microsoft.EntityFrameworkCore;
+using StudentManagementSystem.DAL.Entities;
 
 namespace StudentManagementSystem.DAL.Contracts
 {
     public interface IUnitOfWork
     {
+        DbContext Context { get; }
+
         IBaseRepository<Course> Courses { get; }
         IBaseRepository<Room> Rooms { get; }
         IBaseRepository<TimeSlot> TimeSlots { get; }

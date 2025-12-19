@@ -1,4 +1,5 @@
-﻿using StudentManagementSystem.DAL.Contracts;
+﻿using Microsoft.EntityFrameworkCore;
+using StudentManagementSystem.DAL.Contracts;
 using StudentManagementSystem.DAL.Entities;
 using StudentManagementSystem.DAL.Repositories;
 
@@ -67,6 +68,7 @@ namespace StudentManagementSystem.DAL.DataContext
         public IBaseRepository<AcademicPlanCourse> AcademicPlanCourses => academicPlanCourses.Value;
         public IBaseRepository<RefreshToken> RefreshTokens => refreshTokens.Value;
 
+        public DbContext Context => dbcontext;
 
         public async Task SaveChangesAsync()
         {
