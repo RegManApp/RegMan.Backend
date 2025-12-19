@@ -7,6 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Controllers\ChatController.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Identity -->
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.0" />
 
