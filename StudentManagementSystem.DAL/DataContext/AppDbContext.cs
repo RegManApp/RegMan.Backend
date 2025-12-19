@@ -9,6 +9,8 @@ namespace StudentManagementSystem.DAL.DataContext
         public DbSet<Course> Courses { get; set; }
         public DbSet<Cart> Carts { get; set; }
         public DbSet<OfficeHour> OfficeHours { get; set; }
+        public DbSet<OfficeHourBooking> OfficeHourBookings { get; set; }
+        public DbSet<Notification> Notifications { get; set; }
         public DbSet<CartItem> CartItems { get; set; }
         public DbSet<Section> Sections { get; set; }
 
@@ -197,8 +199,45 @@ namespace StudentManagementSystem.DAL.DataContext
                 .HasIndex(apc => new { apc.AcademicPlanId, apc.CourseId })
                 .IsUnique();
 
+            // Unique constraint: Student can only book same office hour once
+            modelBuilder.Entity<OfficeHourBooking>()
+                .HasIndex(ohb => new { ohb.OfficeHourId, ohb.StudentId })
+                .IsUnique();
+
             // ============================
-            // 4. ENUM CONVERSIONS
+            // 4. OFFICE HOUR RELATIONSHIPS
+            // ============================
+
+            modelBuilder.Entity<OfficeHourBooking>()
+                .HasOne(ohb => ohb.OfficeHour)
+                .WithMany(oh => oh.Bookings)
+                .HasForeignKey(ohb => ohb.OfficeHourId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<OfficeHourBooking>()
+                .HasOne(ohb => ohb.Student)
+                .WithMany(s => s.OfficeHourBookings)
+                .HasForeignKey(ohb => ohb.StudentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OfficeHour>()
+                .HasOne(oh => oh.Instructor)
+                .WithMany(i => i.OfficeHours)
+                .HasForeignKey(oh => oh.InstructorId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // ============================
+            // 5. NOTIFICATION RELATIONSHIPS
+            // ============================
+
+            modelBuilder.Entity<Notification>()
+                .HasOne(n => n.User)
+                .WithMany(u => u.Notifications)
+                .HasForeignKey(n => n.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // ============================
+            // 6. ENUM CONVERSIONS
             // ============================
 
             modelBuilder.Entity<Course>()
@@ -215,6 +254,18 @@ namespace StudentManagementSystem.DAL.DataContext
 
             modelBuilder.Entity<AcademicPlanCourse>()
                 .Property(apc => apc.CourseType)
+                .HasConversion<string>();
+
+            modelBuilder.Entity<OfficeHour>()
+                .Property(oh => oh.Status)
+                .HasConversion<string>();
+
+            modelBuilder.Entity<OfficeHourBooking>()
+                .Property(ohb => ohb.Status)
+                .HasConversion<string>();
+
+            modelBuilder.Entity<Notification>()
+                .Property(n => n.Type)
                 .HasConversion<string>();
 
         }

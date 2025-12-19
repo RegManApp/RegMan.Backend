@@ -19,6 +19,7 @@ namespace StudentManagementSystem.DAL.Entities
         public AcademicPlan AcademicPlan { get; set; } = null!;
         public ICollection<Enrollment> Enrollments { get; set; } = new HashSet<Enrollment>();
         public ICollection<Transcript> Transcripts { get; set; } = new HashSet<Transcript>();
+        public ICollection<OfficeHourBooking> OfficeHourBookings { get; set; } = new HashSet<OfficeHourBooking>();
         [ForeignKey("Cart")]
         public int CartId { get; set; }
         public Cart Cart { get; set; } = null!;

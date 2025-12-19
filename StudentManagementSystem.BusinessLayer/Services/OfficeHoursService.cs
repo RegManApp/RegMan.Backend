@@ -33,10 +33,14 @@ namespace StudentManagementSystem.BusinessLayer.Services
                 {
                     OfficeHoursId = oh.OfficeHourId,
                     RoomId = oh.RoomId,
-                    TimeSlotId = oh.TimeSlotId,
                     InstructorId = oh.InstructorId,
-                    Room = $"{oh.Room.Building} - {oh.Room.RoomNumber}",
-                    TimeSlot = $"{oh.TimeSlot.Day} {oh.TimeSlot.StartTime}-{oh.TimeSlot.EndTime}",
+                    Date = oh.Date,
+                    StartTime = oh.StartTime.ToString(@"hh\:mm"),
+                    EndTime = oh.EndTime.ToString(@"hh\:mm"),
+                    Status = oh.Status.ToString(),
+                    Notes = oh.Notes,
+                    IsRecurring = oh.IsRecurring,
+                    Room = oh.Room != null ? $"{oh.Room.Building} - {oh.Room.RoomNumber}" : null,
                     InstructorName = oh.Instructor.User.FullName
                 }
                 )
@@ -53,17 +57,31 @@ namespace StudentManagementSystem.BusinessLayer.Services
             InstructorProfile? instructor = await instructorsRepository.GetByIdAsync(hoursDTO.InstructorId);
             if (instructor == null)
                 throw new KeyNotFoundException($"Instructor with ID {hoursDTO.InstructorId} not found.");
-            var room = await unitOfWork.Rooms.GetByIdAsync(hoursDTO.RoomId)
-               ?? throw new Exception($"Room with ID {hoursDTO.RoomId} not found.");
 
-            var timeSlot = await unitOfWork.TimeSlots.GetByIdAsync(hoursDTO.TimeSlotId)
-                ?? throw new Exception($"Time slot with ID {hoursDTO.TimeSlotId} not found.");
+            if (hoursDTO.RoomId.HasValue)
+            {
+                var room = await unitOfWork.Rooms.GetByIdAsync(hoursDTO.RoomId.Value)
+                   ?? throw new Exception($"Room with ID {hoursDTO.RoomId} not found.");
+            }
+
+            if (!TimeSpan.TryParse(hoursDTO.StartTime, out var startTime) ||
+                !TimeSpan.TryParse(hoursDTO.EndTime, out var endTime))
+            {
+                throw new Exception("Invalid time format. Use HH:mm");
+            }
+
             //all are valid, create office hour
             OfficeHour officeHour = new OfficeHour
             {
                 InstructorId = hoursDTO.InstructorId,
                 RoomId = hoursDTO.RoomId,
-                TimeSlotId = hoursDTO.TimeSlotId
+                Date = hoursDTO.Date.Date,
+                StartTime = startTime,
+                EndTime = endTime,
+                IsRecurring = hoursDTO.IsRecurring,
+                RecurringDay = hoursDTO.IsRecurring ? hoursDTO.Date.DayOfWeek : null,
+                Notes = hoursDTO.Notes,
+                Status = OfficeHourStatus.Available
             };
             await officeHoursRepository.AddAsync(officeHour);
             await unitOfWork.SaveChangesAsync();
@@ -71,11 +89,15 @@ namespace StudentManagementSystem.BusinessLayer.Services
             {
                 OfficeHoursId = officeHour.OfficeHourId,
                 RoomId = officeHour.RoomId,
-                TimeSlotId = officeHour.TimeSlotId,
                 InstructorId = officeHour.InstructorId,
-                Room = $"{officeHour.Room.Building} - {officeHour.Room.RoomNumber}",
-                TimeSlot = $"{officeHour.TimeSlot.Day} {officeHour.TimeSlot.StartTime}-{officeHour.TimeSlot.EndTime}",
-                InstructorName = officeHour.Instructor.User.FullName
+                Date = officeHour.Date,
+                StartTime = officeHour.StartTime.ToString(@"hh\:mm"),
+                EndTime = officeHour.EndTime.ToString(@"hh\:mm"),
+                Status = officeHour.Status.ToString(),
+                Notes = officeHour.Notes,
+                IsRecurring = officeHour.IsRecurring,
+                Room = officeHour.Room != null ? $"{officeHour.Room.Building} - {officeHour.Room.RoomNumber}" : null,
+                InstructorName = instructor.User?.FullName ?? "Unknown"
             };
         }
         //DELETE

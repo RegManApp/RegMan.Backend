@@ -28,7 +28,7 @@ namespace StudentManagementSystem.DAL.Entities
 
         private ICollection<Section> Sections { get; set; } = new List<Section>();
         private ICollection<ScheduleSlot> ScheduleSlots { get; set; } = new List<ScheduleSlot>();
-        private ICollection<OfficeHour> OfficeHours { get; set; } = new List<OfficeHour>();
+        public ICollection<OfficeHour> OfficeHours { get; set; } = new List<OfficeHour>();
         public string UserId { get; set; } = null!; //fk
         public BaseUser User { get; set; } = null!;
     }

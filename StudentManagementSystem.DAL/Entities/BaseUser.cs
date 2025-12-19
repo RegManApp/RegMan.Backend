@@ -22,6 +22,7 @@ namespace StudentManagementSystem.DAL.Entities
         public AdminProfile? AdminProfile { get; set; }
         public InstructorProfile? InstructorProfile { get; set; }
         public ICollection<RefreshToken> RefreshTokens { get; set; } = new HashSet<RefreshToken>();
+        public ICollection<Notification> Notifications { get; set; } = new HashSet<Notification>();
 
     }
 }
