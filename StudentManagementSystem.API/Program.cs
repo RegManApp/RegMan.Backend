@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using StudentManagementSystem.API.Common;
+using StudentManagementSystem.API.Hubs;
 using StudentManagementSystem.API.Middleware;
 using StudentManagementSystem.API.Seeders;
 using StudentManagementSystem.BusinessLayer;
@@ -14,6 +15,7 @@ using StudentManagementSystem.DAL.Entities;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using static System.Net.WebRequestMethods;
 
 namespace StudentManagementSystem.API
 {
@@ -44,8 +46,9 @@ namespace StudentManagementSystem.API
                         .AllowCredentials();
                 });
             });
-            
 
+            //Add Websocket SignalR 
+            builder.Services.AddSignalR();
             // =========================
             // Database + Business Layer
             // =========================
@@ -100,6 +103,22 @@ namespace StudentManagementSystem.API
 
                     NameClaimType = JwtRegisteredClaimNames.Sub,
                     RoleClaimType = ClaimTypes.Role
+                };
+                options.Events = new JwtBearerEvents
+                {
+                    OnMessageReceived = context =>
+                    {
+                        var accessToken = context.Request.Query["access_token"];
+                        var path = context.HttpContext.Request.Path;
+
+                        if (!string.IsNullOrEmpty(accessToken) &&
+                            path.StartsWithSegments("/hubs/chat"))
+                        {
+                            context.Token = accessToken;
+                        }
+
+                        return Task.CompletedTask;
+                    }
                 };
             });
 
@@ -215,6 +234,7 @@ namespace StudentManagementSystem.API
             app.UseAuthentication();
             app.UseAuthorization();
 
+            app.MapHub<ChatHub>("/hubs/chat");
             app.MapControllers();
 
             app.Run();

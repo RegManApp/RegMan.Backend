@@ -12,6 +12,6 @@ namespace StudentManagementSystem.BusinessLayer.DTOs.ChattingDTO
         //public List<string> ParticipantNames { get; set; } = new List<string>();
         public string LastMessageSnippet { get; set; } = string.Empty;
         public DateTime LastMessageTime { get; set; }
-        public string ConverstaionDisplayName { get; set; } = string.Empty;
+        public string ConversationDisplayName { get; set; } = string.Empty;
     }
 }

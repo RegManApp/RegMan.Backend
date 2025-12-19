@@ -28,7 +28,7 @@ namespace StudentManagementSystem.BusinessLayer.Services
             this.messageRepository = unitOfWork.Messages;
             this.participantRepository = unitOfWork.ConversationParticipants;
         }
-        public async Task<Conversation> CreateConversationAsync( List<string> UserIds)
+        private async Task<Conversation> CreateConversationAsync( List<string> UserIds)
         {
             var distinctUserIds = UserIds.Distinct().ToList();
 
@@ -58,7 +58,7 @@ namespace StudentManagementSystem.BusinessLayer.Services
             return conversation;
         }
         //send a message to a user
-        public async Task<Message> SendMessageAsync(string senderId, string recieverId, string textMessage)
+        public async Task<ViewConversationDTO> SendMessageAsync(string senderId, string recieverId, string textMessage)
         {
 
             if(string.IsNullOrWhiteSpace(textMessage))
@@ -76,12 +76,33 @@ namespace StudentManagementSystem.BusinessLayer.Services
             };
             await messageRepository.AddAsync(message);
             await unitOfWork.SaveChangesAsync();
-            return message;
+            return await ViewConversationAsync( senderId, conversation.ConversationId, 1 , 20);
         }
+       
         //View all user conversations
         public async Task<ViewConversationsDTO> GetUserConversationsAsync(string userId)
         {
-            var conversations = await convoRepository.GetConversationsByUserIdAsync(userId);
+
+            var conversations = await participantRepository.GetAllAsQueryable().AsNoTracking()
+                .Where(cp => cp.UserId == userId)
+                .Select(cp => new ViewConversationSummaryDTO
+                {
+                    ConversationId = cp.Conversation.ConversationId,
+                    LastMessageSnippet = cp.Conversation.Messages
+                        .OrderByDescending(m => m.SentAt)
+                        .Select(m => m.TextMessage.Length > 30 ? m.TextMessage.Substring(0, 30) + "..." : m.TextMessage)
+                        .FirstOrDefault() ?? string.Empty,
+                    LastMessageTime = cp.Conversation.Messages
+                        .OrderByDescending(m => m.SentAt)
+                        .Select(m => m.SentAt)
+                        .FirstOrDefault(),
+                    ConversationDisplayName = cp.Conversation.Participants
+                        .Where(p => p.UserId != userId)
+                        .Select(p => p.User.FullName)
+                        .FirstOrDefault() ?? "No Participants"
+                })
+                .ToListAsync();
+
             if (conversations == null)
             {
                 ViewConversationsDTO errorResult = new ViewConversationsDTO
@@ -91,24 +112,11 @@ namespace StudentManagementSystem.BusinessLayer.Services
                 };
                 return errorResult;
             }
-            var conversationsSummary = conversations.Select(convo =>
+            ViewConversationsDTO conversationsDTO = new ViewConversationsDTO
             {
-                var lastMessage = convo.Messages.OrderByDescending(m => m.SentAt).FirstOrDefault();
-         
-                return new ViewConversationSummaryDTO
-                {
-                    ConversationId = convo.ConversationId,
-                    LastMessageSnippet = lastMessage != null ? (lastMessage.TextMessage.Length > 30 ? lastMessage.TextMessage.Substring(0, 30) + "..." : lastMessage.TextMessage) : string.Empty,
-                    LastMessageTime = lastMessage != null ? lastMessage.SentAt : DateTime.MinValue,
-                    ConverstaionDisplayName = convo.Participants
-                        .Where(p => p.UserId != userId)
-                        .Select(p => p.User.FullName)
-                        .FirstOrDefault() ?? "No Participants" 
-                };
-            }).ToList();
-            return new ViewConversationsDTO { 
-                Conversations = conversationsSummary
+                Conversations = conversations
             };
+            return conversationsDTO;
         }
         //View specific conversation in details (view chat)
         public async Task<ViewConversationDTO> ViewConversationAsync(string userId,int conversationId, int pageNumber, int pageSize=20)
@@ -162,12 +170,6 @@ namespace StudentManagementSystem.BusinessLayer.Services
                 ValidationMessage = validationMessage ?? null
             };
         }
-
-        //public async Task<IEnumerable<Message>> GetMessagesByConversationIdAsync(int conversationId)
-        //{
-        //    var conversation = await convoRepository.GetByIdAsync(conversationId);
-        //    return conversation.Messages.OrderBy(m => m.SentAt);
-        //}
 
     }
 }

@@ -63,13 +63,25 @@ namespace StudentManagementSystem.DAL.DataContext
                 .WithMany(ap => ap.Students)
                 .HasForeignKey(sp => sp.AcademicPlanId)
                 .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<ConversationParticipant>()
+        .HasKey(cp => new { cp.ConversationId, cp.UserId });
 
-            // ============================
-            // 2. ONE-TO-MANY RELATIONSHIPS
-            // ============================
+            modelBuilder.Entity<ConversationParticipant>()
+                .HasOne(cp => cp.Conversation)
+                .WithMany(c => c.Participants)
+                .HasForeignKey(cp => cp.ConversationId);
 
-            // Section → ScheduleSlot
-            modelBuilder.Entity<ScheduleSlot>()
+            modelBuilder.Entity<ConversationParticipant>()
+                .HasOne(cp => cp.User)
+                .WithMany()
+                .HasForeignKey(cp => cp.UserId);
+        
+        // ============================
+        // 2. ONE-TO-MANY RELATIONSHIPS
+        // ============================
+
+        // Section → ScheduleSlot
+        modelBuilder.Entity<ScheduleSlot>()
                 .HasOne(ss => ss.Section)
                 .WithMany(s => s.Slots)
                 .HasForeignKey(ss => ss.SectionId)

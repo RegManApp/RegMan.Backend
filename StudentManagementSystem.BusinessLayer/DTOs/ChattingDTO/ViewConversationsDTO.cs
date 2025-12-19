@@ -8,7 +8,7 @@ namespace StudentManagementSystem.BusinessLayer.DTOs.ChattingDTO
 {
     public class ViewConversationsDTO
     {
-        public List<ViewConversationSummaryDTO> Conversations { get; set; } = new List<ViewConversationDTO>();
+        public List<ViewConversationSummaryDTO> Conversations { get; set; } = new List<ViewConversationSummaryDTO>();
         public string? ErrorMessage { get; set; } = string.Empty;
     }
 }

@@ -10,6 +10,7 @@ namespace StudentManagementSystem.BusinessLayer.DTOs.ChattingDTO
     public class ViewMessageDTO
     {
         public int MessageId { get; set; }
+        public int ConversationId { get; set; }
         public string SenderId { get; set; }
         public string SenderName { get; set; } = string.Empty;
         public string Content { get; set; } = string.Empty;
