@@ -28,7 +28,7 @@ namespace StudentManagementSystem.BusinessLayer.Services
             this.messageRepository = unitOfWork.Messages;
             this.participantRepository = unitOfWork.ConversationParticipants;
         }
-        private async Task<Conversation> CreateConversationAsync( List<string> UserIds)
+        private async Task<Conversation> CreateConversationAsync(List<string> UserIds)
         {
             var distinctUserIds = UserIds.Distinct().ToList();
 
@@ -48,7 +48,7 @@ namespace StudentManagementSystem.BusinessLayer.Services
                     UserId = u.Id
                 }).ToList()
             };
-            foreach( var participant in conversation.Participants)
+            foreach (var participant in conversation.Participants)
             {
                 await participantRepository.AddAsync(participant);
             }
@@ -61,10 +61,10 @@ namespace StudentManagementSystem.BusinessLayer.Services
         public async Task<ViewConversationDTO> SendMessageAsync(string senderId, string recieverId, string textMessage)
         {
 
-            if(string.IsNullOrWhiteSpace(textMessage))
+            if (string.IsNullOrWhiteSpace(textMessage))
                 throw new ArgumentException("Message text cannot be empty.", nameof(textMessage));
             Conversation? conversation = await convoRepository.GetConversationByParticipantsAsync(senderId, recieverId);
-            if (conversation is null) 
+            if (conversation is null)
                 conversation = await CreateConversationAsync(new List<string> { senderId, recieverId });
             var message = new Message
             {
@@ -76,9 +76,9 @@ namespace StudentManagementSystem.BusinessLayer.Services
             };
             await messageRepository.AddAsync(message);
             await unitOfWork.SaveChangesAsync();
-            return await ViewConversationAsync( senderId, conversation.ConversationId, 1 , 20);
+            return await ViewConversationAsync(senderId, conversation.ConversationId, 1, 20);
         }
-       
+
         //View all user conversations
         public async Task<ViewConversationsDTO> GetUserConversationsAsync(string userId)
         {
@@ -119,7 +119,7 @@ namespace StudentManagementSystem.BusinessLayer.Services
             return conversationsDTO;
         }
         //View specific conversation in details (view chat)
-        public async Task<ViewConversationDTO> ViewConversationAsync(string userId,int conversationId, int pageNumber, int pageSize=20)
+        public async Task<ViewConversationDTO> ViewConversationAsync(string userId, int conversationId, int pageNumber, int pageSize = 20)
         {
             string validationMessage = null;
             var conversation = await convoRepository.GetByIdAsync(conversationId);
@@ -140,13 +140,15 @@ namespace StudentManagementSystem.BusinessLayer.Services
                     Timestamp = m.SentAt
                 }
                 ).ToListAsync();
-            if(Messages.Count == 0)
+            if (Messages.Count == 0)
             {
                 validationMessage = "No previous messages.";
             }
-            string displayName=string.Empty;
+            string displayName = string.Empty;
             var participants = await convoRepository.GetConversationParticipantsAsync(conversationId);
-            if (participants.Distinct().Count()>2) {
+            var participantIds = participants.Select(p => p.UserId).Distinct().ToList();
+            if (participants.Distinct().Count() > 2)
+            {
                 if (!string.IsNullOrWhiteSpace(conversation.ConversationName))
                     displayName = conversation.ConversationName;
                 else
@@ -157,7 +159,7 @@ namespace StudentManagementSystem.BusinessLayer.Services
                             .Select(p => p.User.FullName)
                             .Take(3));
                 }
-                    
+
             }
             else
                 displayName = participants.Where(p => p.UserId != userId).Select(p => p.User.FullName).FirstOrDefault();
@@ -167,7 +169,8 @@ namespace StudentManagementSystem.BusinessLayer.Services
                 ConversationId = conversationId,
                 Messages = Messages,
                 DisplayName = displayName,
-                ValidationMessage = validationMessage ?? null
+                ValidationMessage = validationMessage ?? null,
+                ParticipantIds = participantIds
             };
         }
 
