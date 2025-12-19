@@ -191,6 +191,8 @@ namespace StudentManagementSystem.API
                         Scheme = JwtBearerDefaults.AuthenticationScheme,
                         Description = "Enter JWT Bearer token only"
                     });
+                
+                options.CustomSchemaIds(type => type.FullName);
 
                 options.AddSecurityRequirement(new OpenApiSecurityRequirement
                 {
