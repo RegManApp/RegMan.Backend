@@ -65,5 +65,27 @@ namespace StudentManagementSystem.API.Controllers
             ));
         }
 
+        // Alias for enroll - checkout
+        [HttpPost("checkout")]
+        public async Task<IActionResult> Checkout()
+        {
+            string userId = GetStudentID();
+
+            await enrollmentService.EnrollFromCartAsync(userId);
+
+            return Ok(ApiResponse<string>.SuccessResponse(
+                "Checkout completed successfully"
+            ));
+        }
+
+        // Get current student's enrollments
+        [HttpGet("my-enrollments")]
+        public async Task<IActionResult> GetMyEnrollments()
+        {
+            string userId = GetStudentID();
+            var enrollments = await enrollmentService.GetStudentEnrollmentsAsync(userId);
+            return Ok(ApiResponse<object>.SuccessResponse(enrollments));
+        }
+
     }
 }

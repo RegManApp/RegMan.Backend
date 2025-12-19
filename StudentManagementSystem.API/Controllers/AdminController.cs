@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using StudentManagementSystem.API.Common;
 using StudentManagementSystem.BusinessLayer.Contracts;
 using StudentManagementSystem.BusinessLayer.DTOs.Auth;
@@ -101,6 +102,133 @@ namespace StudentManagementSystem.API.Controllers
             return Ok(ApiResponse<string>.SuccessResponse(
                 "User created successfully"
             ));
+        }
+
+        // =========================
+        // Get Dashboard Stats
+        // =========================
+        [HttpGet("stats")]
+        public async Task<IActionResult> GetStats()
+        {
+            var allUsers = userManager.Users;
+            var totalUsers = await allUsers.CountAsync();
+            var totalStudents = await allUsers.CountAsync(u => u.Role == "Student");
+            var totalInstructors = await allUsers.CountAsync(u => u.Role == "Instructor");
+            var totalAdmins = await allUsers.CountAsync(u => u.Role == "Admin");
+
+            // Get course count from enrollments or courses
+            var totalEnrollments = await enrollmentService.CountAllAsync();
+
+            return Ok(ApiResponse<object>.SuccessResponse(new
+            {
+                TotalUsers = totalUsers,
+                TotalStudents = totalStudents,
+                TotalInstructors = totalInstructors,
+                TotalAdmins = totalAdmins,
+                TotalEnrollments = totalEnrollments
+            }));
+        }
+
+        // =========================
+        // Get All Users
+        // =========================
+        [HttpGet("users")]
+        public async Task<IActionResult> GetAllUsers(
+            [FromQuery] string? email,
+            [FromQuery] string? role,
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 10)
+        {
+            var query = userManager.Users.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(email))
+                query = query.Where(u => u.Email != null && u.Email.Contains(email));
+
+            if (!string.IsNullOrWhiteSpace(role))
+                query = query.Where(u => u.Role == role);
+
+            var totalItems = await query.CountAsync();
+            var users = await query
+                .OrderBy(u => u.Email)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .Select(u => new
+                {
+                    u.Id,
+                    u.Email,
+                    u.FullName,
+                    u.Role,
+                    u.Address
+                })
+                .ToListAsync();
+
+            return Ok(ApiResponse<object>.SuccessResponse(new
+            {
+                Items = users,
+                TotalItems = totalItems,
+                TotalPages = (int)Math.Ceiling(totalItems / (double)pageSize),
+                CurrentPage = pageNumber,
+                PageSize = pageSize
+            }));
+        }
+
+        // =========================
+        // Get User By Id
+        // =========================
+        [HttpGet("users/{id}")]
+        public async Task<IActionResult> GetUserById(string id)
+        {
+            var user = await userManager.FindByIdAsync(id);
+            if (user == null)
+                return NotFound(ApiResponse<string>.FailureResponse(
+                    "User not found",
+                    StatusCodes.Status404NotFound
+                ));
+
+            return Ok(ApiResponse<object>.SuccessResponse(new
+            {
+                user.Id,
+                user.Email,
+                user.FullName,
+                user.Role,
+                user.Address
+            }));
+        }
+
+        // =========================
+        // Delete User
+        // =========================
+        [HttpDelete("users/{id}")]
+        public async Task<IActionResult> DeleteUser(string id)
+        {
+            var user = await userManager.FindByIdAsync(id);
+            if (user == null)
+                return NotFound(ApiResponse<string>.FailureResponse(
+                    "User not found",
+                    StatusCodes.Status404NotFound
+                ));
+
+            var result = await userManager.DeleteAsync(user);
+            if (!result.Succeeded)
+            {
+                return BadRequest(ApiResponse<object>.FailureResponse(
+                    "Failed to delete user",
+                    StatusCodes.Status400BadRequest,
+                    result.Errors.Select(e => e.Description)
+                ));
+            }
+
+            // Audit Log
+            var (adminId, adminEmail) = GetAdminInfo();
+            await auditLogService.LogAsync(
+                adminId,
+                adminEmail,
+                "DELETE",
+                "User",
+                id
+            );
+
+            return Ok(ApiResponse<string>.SuccessResponse("User deleted successfully"));
         }
 
         [HttpGet("students/{studentId}/cart")]

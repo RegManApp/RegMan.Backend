@@ -1,4 +1,5 @@
-﻿using StudentManagementSystem.BusinessLayer.DTOs.CourseDTOs;
+﻿using StudentManagementSystem.BusinessLayer.DTOs.Common;
+using StudentManagementSystem.BusinessLayer.DTOs.CourseDTOs;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,6 +12,7 @@ namespace StudentManagementSystem.BusinessLayer.Contracts
     {
         //Read
         Task<IEnumerable<ViewCourseSummaryDTO>> GetAllCoursesAsync(string? courseName, int? creditHours, string? courseCode, int? courseCategoryId);
+        Task<PaginatedResponse<ViewCourseSummaryDTO>> GetAllCoursesPaginatedAsync(int page, int pageSize, string? search, string? courseName, int? creditHours, string? courseCode, int? courseCategoryId);
         Task<ViewCourseDetailsDTO> GetCourseByIdAsync(int id);
         Task<ViewCourseSummaryDTO> GetCourseSummaryByIdAsync(int id);
 
