@@ -9,6 +9,7 @@ namespace StudentManagementSystem.DAL.Contracts
         IBaseRepository<TimeSlot> TimeSlots { get; }
         IBaseRepository<Section> Sections { get; }
         IBaseRepository<ScheduleSlot> ScheduleSlots { get; }
+        IBaseRepository<OfficeHour> OfficeHours { get; }
         IBaseRepository<Enrollment> Enrollments { get; }
 
         IBaseRepository<AdminProfile> AdminProfiles { get; }

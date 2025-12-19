@@ -8,6 +8,7 @@ namespace StudentManagementSystem.DAL.DataContext
     {
         public DbSet<Course> Courses { get; set; }
         public DbSet<Cart> Carts { get; set; }
+        public DbSet<OfficeHour> OfficeHours { get; set; }
         public DbSet<CartItem> CartItems { get; set; }
         public DbSet<Section> Sections { get; set; }
 

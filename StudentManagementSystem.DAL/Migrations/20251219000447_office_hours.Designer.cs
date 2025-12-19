@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using StudentManagementSystem.DAL.DataContext;
 
@@ -11,9 +12,11 @@ using StudentManagementSystem.DAL.DataContext;
 namespace StudentManagementSystem.DAL.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251219000447_office_hours")]
+    partial class office_hours
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -181,7 +184,7 @@ namespace StudentManagementSystem.DAL.Migrations
 
                     b.HasKey("AcademicPlanId");
 
-                    b.ToTable("AcademicPlans", (string)null);
+                    b.ToTable("AcademicPlans");
                 });
 
             modelBuilder.Entity("StudentManagementSystem.DAL.Entities.AcademicPlanCourse", b =>
@@ -219,7 +222,7 @@ namespace StudentManagementSystem.DAL.Migrations
                     b.HasIndex("AcademicPlanId", "CourseId")
                         .IsUnique();
 
-                    b.ToTable("AcademicPlanCourses", (string)null);
+                    b.ToTable("AcademicPlanCourses");
                 });
 
             modelBuilder.Entity("StudentManagementSystem.DAL.Entities.AdminProfile", b =>
@@ -243,7 +246,7 @@ namespace StudentManagementSystem.DAL.Migrations
                     b.HasIndex("UserId")
                         .IsUnique();
 
-                    b.ToTable("Admins", (string)null);
+                    b.ToTable("Admins");
                 });
 
             modelBuilder.Entity("StudentManagementSystem.DAL.Entities.AuditLog", b =>
@@ -279,7 +282,7 @@ namespace StudentManagementSystem.DAL.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("AuditLogs", (string)null);
+                    b.ToTable("AuditLogs");
                 });
 
             modelBuilder.Entity("StudentManagementSystem.DAL.Entities.BaseUser", b =>
@@ -378,7 +381,7 @@ namespace StudentManagementSystem.DAL.Migrations
                     b.HasIndex("StudentProfileId")
                         .IsUnique();
 
-                    b.ToTable("Carts", (string)null);
+                    b.ToTable("Carts");
                 });
 
             modelBuilder.Entity("StudentManagementSystem.DAL.Entities.CartItem", b =>
@@ -402,7 +405,7 @@ namespace StudentManagementSystem.DAL.Migrations
                     b.HasIndex("CartId", "ScheduleSlotId")
                         .IsUnique();
 
-                    b.ToTable("CartItems", (string)null);
+                    b.ToTable("CartItems");
                 });
 
             modelBuilder.Entity("StudentManagementSystem.DAL.Entities.Course", b =>
@@ -433,7 +436,7 @@ namespace StudentManagementSystem.DAL.Migrations
 
                     b.HasKey("CourseId");
 
-                    b.ToTable("Courses", (string)null);
+                    b.ToTable("Courses");
                 });
 
             modelBuilder.Entity("StudentManagementSystem.DAL.Entities.Enrollment", b =>
@@ -464,7 +467,7 @@ namespace StudentManagementSystem.DAL.Migrations
                     b.HasIndex("StudentId", "SectionId")
                         .IsUnique();
 
-                    b.ToTable("Enrollments", (string)null);
+                    b.ToTable("Enrollments");
                 });
 
             modelBuilder.Entity("StudentManagementSystem.DAL.Entities.InstructorProfile", b =>
@@ -488,7 +491,7 @@ namespace StudentManagementSystem.DAL.Migrations
                     b.HasIndex("UserId")
                         .IsUnique();
 
-                    b.ToTable("Instructors", (string)null);
+                    b.ToTable("Instructors");
                 });
 
             modelBuilder.Entity("StudentManagementSystem.DAL.Entities.OfficeHour", b =>
@@ -548,7 +551,7 @@ namespace StudentManagementSystem.DAL.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("RefreshTokens", (string)null);
+                    b.ToTable("RefreshTokens");
                 });
 
             modelBuilder.Entity("StudentManagementSystem.DAL.Entities.Room", b =>
@@ -577,7 +580,7 @@ namespace StudentManagementSystem.DAL.Migrations
 
                     b.HasKey("RoomId");
 
-                    b.ToTable("Rooms", (string)null);
+                    b.ToTable("Rooms");
                 });
 
             modelBuilder.Entity("StudentManagementSystem.DAL.Entities.ScheduleSlot", b =>
@@ -613,7 +616,7 @@ namespace StudentManagementSystem.DAL.Migrations
 
                     b.HasIndex("TimeSlotId");
 
-                    b.ToTable("ScheduleSlots", (string)null);
+                    b.ToTable("ScheduleSlots");
                 });
 
             modelBuilder.Entity("StudentManagementSystem.DAL.Entities.Section", b =>
@@ -646,7 +649,7 @@ namespace StudentManagementSystem.DAL.Migrations
 
                     b.HasIndex("InstructorId");
 
-                    b.ToTable("Sections", (string)null);
+                    b.ToTable("Sections");
                 });
 
             modelBuilder.Entity("StudentManagementSystem.DAL.Entities.StudentProfile", b =>
@@ -688,7 +691,7 @@ namespace StudentManagementSystem.DAL.Migrations
                     b.HasIndex("UserId")
                         .IsUnique();
 
-                    b.ToTable("Students", (string)null);
+                    b.ToTable("Students");
                 });
 
             modelBuilder.Entity("StudentManagementSystem.DAL.Entities.TimeSlot", b =>
@@ -711,7 +714,7 @@ namespace StudentManagementSystem.DAL.Migrations
 
                     b.HasKey("TimeSlotId");
 
-                    b.ToTable("TimeSlots", (string)null);
+                    b.ToTable("TimeSlots");
                 });
 
             modelBuilder.Entity("StudentManagementSystem.DAL.Entities.Transcript", b =>
@@ -761,7 +764,7 @@ namespace StudentManagementSystem.DAL.Migrations
                     b.HasIndex("StudentId", "CourseId", "SectionId")
                         .IsUnique();
 
-                    b.ToTable("Transcripts", (string)null);
+                    b.ToTable("Transcripts");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
