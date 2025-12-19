@@ -4,14 +4,14 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace StudentManagementSystem.DAL.Entities
 {
-    public enum Status { Enrolled, Dropped, Completed }
+    public enum Status { Pending, Enrolled, Dropped, Completed, Declined }
 
     public class Enrollment
     {
         [Key]
         public int EnrollmentId { get; set; }
 
-        public Status Status { get; set; }
+        public Status Status { get; set; } = Status.Pending;
 
         [Required]
         public int StudentId { get; set; }
@@ -22,6 +22,14 @@ namespace StudentManagementSystem.DAL.Entities
 
         // Grade (A, B, C, D, F, etc.)
         public string? Grade { get; set; }
+
+        // Reason for declining the enrollment
+        public string? DeclineReason { get; set; }
+
+        // Who approved/declined (Advisor/Admin ID)
+        public string? ApprovedBy { get; set; }
+
+        public DateTime? ApprovedAt { get; set; }
 
         //Nav properties
         public StudentProfile? Student { get; set; }
