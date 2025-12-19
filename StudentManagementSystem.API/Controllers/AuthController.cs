@@ -211,7 +211,7 @@ namespace StudentManagementSystem.API.Controllers
             var user = await userManager.Users
                 .Include(u => u.InstructorProfile)
                 .Include(u => u.StudentProfile)
-                    .ThenInclude(sp => sp.AcademicPlan)
+                    .ThenInclude(sp => sp!.AcademicPlan)
                 .FirstOrDefaultAsync(u => u.Id == userId);
 
             if (user == null)
@@ -223,7 +223,7 @@ namespace StudentManagementSystem.API.Controllers
             }
 
             // Build response based on role
-            object profileData = null;
+            object? profileData = null;
             if (user.Role == "Student" && user.StudentProfile != null)
             {
                 profileData = new

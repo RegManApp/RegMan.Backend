@@ -387,9 +387,9 @@ namespace StudentManagementSystem.API.Controllers
         {
             var query = unitOfWork.Enrollments.GetAllAsQueryable()
                 .Include(e => e.Section)
-                    .ThenInclude(s => s.Course)
+                    .ThenInclude(s => s!.Course)
                 .Include(e => e.Student)
-                    .ThenInclude(s => s.User)
+                    .ThenInclude(s => s!.User)
                 .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(search))
