@@ -138,7 +138,7 @@ namespace StudentManagementSystem.API.Controllers
                 FullName = user.FullName,
                 Role = roles.FirstOrDefault() ?? user.Role,
                 UserId = user.Id,
-                InstructorTitle = user.InstructorProfile?.Title
+                InstructorTitle = user.InstructorProfile?.Title ?? null
             }));
         }
 
