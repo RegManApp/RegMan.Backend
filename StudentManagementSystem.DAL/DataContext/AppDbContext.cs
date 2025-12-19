@@ -10,6 +10,9 @@ namespace StudentManagementSystem.DAL.DataContext
         public DbSet<Cart> Carts { get; set; }
         public DbSet<CartItem> CartItems { get; set; }
         public DbSet<Section> Sections { get; set; }
+        public DbSet<Conversation> Conversations { get; set; }
+        public DbSet<Message> Messages { get; set; }
+        public DbSet<ConversationParticipant> ConversationParticipants { get; set; }
 
         // public DbSet<BaseUser> Users { get; set; }
 

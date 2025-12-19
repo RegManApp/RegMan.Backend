@@ -10,7 +10,9 @@ namespace StudentManagementSystem.DAL.Contracts
         IBaseRepository<Section> Sections { get; }
         IBaseRepository<ScheduleSlot> ScheduleSlots { get; }
         IBaseRepository<Enrollment> Enrollments { get; }
-
+        IMessageRepository Messages { get; }
+        IConversationRepository Conversations { get; }
+        IBaseRepository<ConversationParticipant> ConversationParticipants { get; }
         IBaseRepository<AdminProfile> AdminProfiles { get; }
         IBaseRepository<InstructorProfile> InstructorProfiles { get; }
         IBaseRepository<StudentProfile> StudentProfiles { get; }

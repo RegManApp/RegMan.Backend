@@ -8,16 +8,7 @@ using System.Linq.Expressions;
 namespace StudentManagementSystem.DAL
 {
     public static class DataAccessExtension
-    {
-        public static IQueryable<TDestination> ProjectTo<TEntity, TDestination>(this IQueryable<TEntity> source, Expression<Func<TEntity, TDestination>> projection)
-            where TEntity : class
-            where TDestination : class
-        {
-            // Simply applies the provided Select projection to the IQueryable.
-            // Entity Framework Core/LINQ Provider translates this into efficient SQL SELECT.
-            return source.Select(projection);
-        }
-      
+    {     
         public static IServiceCollection AddDataBaseLayer( this IServiceCollection service, IConfiguration configuration) 
         {
             service.AddScoped<IUnitOfWork, UnitOfWork>();
