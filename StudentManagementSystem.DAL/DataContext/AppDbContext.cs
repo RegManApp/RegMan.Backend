@@ -13,6 +13,9 @@ namespace StudentManagementSystem.DAL.DataContext
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<CartItem> CartItems { get; set; }
         public DbSet<Section> Sections { get; set; }
+        public DbSet<Conversation> Conversations { get; set; }
+        public DbSet<Message> Messages { get; set; }
+        public DbSet<ConversationParticipant> ConversationParticipants { get; set; }
 
         // public DbSet<BaseUser> Users { get; set; }
 
@@ -63,7 +66,14 @@ namespace StudentManagementSystem.DAL.DataContext
                 .WithMany(ap => ap.Students)
                 .HasForeignKey(sp => sp.AcademicPlanId)
                 .OnDelete(DeleteBehavior.Restrict);
+                
+            modelBuilder.Entity<ConversationParticipant>()
+              .HasKey(cp => new { cp.ConversationId, cp.UserId });
 
+            modelBuilder.Entity<ConversationParticipant>()
+                .HasOne(cp => cp.Conversation)
+                .WithMany(c => c.Participants)
+                .HasForeignKey(cp => cp.ConversationId);
             // ============================
             // COURSE → SECTION CASCADE DELETE
             // ============================
@@ -79,8 +89,17 @@ namespace StudentManagementSystem.DAL.DataContext
             // 2. ONE-TO-MANY RELATIONSHIPS
             // ============================
 
-            // Section → ScheduleSlot
-            modelBuilder.Entity<ScheduleSlot>()
+            modelBuilder.Entity<ConversationParticipant>()
+                .HasOne(cp => cp.User)
+                .WithMany()
+                .HasForeignKey(cp => cp.UserId);
+        
+        // ============================
+        // 2. ONE-TO-MANY RELATIONSHIPS
+        // ============================
+
+        // Section → ScheduleSlot
+        modelBuilder.Entity<ScheduleSlot>()
                 .HasOne(ss => ss.Section)
                 .WithMany(s => s.Slots)
                 .HasForeignKey(ss => ss.SectionId)

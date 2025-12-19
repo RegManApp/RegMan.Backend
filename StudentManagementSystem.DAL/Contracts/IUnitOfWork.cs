@@ -14,7 +14,9 @@ namespace StudentManagementSystem.DAL.Contracts
         IBaseRepository<ScheduleSlot> ScheduleSlots { get; }
         IBaseRepository<OfficeHour> OfficeHours { get; }
         IBaseRepository<Enrollment> Enrollments { get; }
-
+        IMessageRepository Messages { get; }
+        IConversationRepository Conversations { get; }
+        IBaseRepository<ConversationParticipant> ConversationParticipants { get; }
         IBaseRepository<AdminProfile> AdminProfiles { get; }
         IBaseRepository<InstructorProfile> InstructorProfiles { get; }
         IBaseRepository<StudentProfile> StudentProfiles { get; }

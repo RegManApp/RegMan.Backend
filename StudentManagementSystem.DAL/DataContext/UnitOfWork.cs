@@ -25,6 +25,9 @@ namespace StudentManagementSystem.DAL.DataContext
         private Lazy<IBaseRepository<Section>> sections { get; set; }
         private Lazy<IBaseRepository<TimeSlot>> timeSlots { get; set; }
         private Lazy<IBaseRepository<RefreshToken>> refreshTokens;
+        private Lazy<IConversationRepository> conversations;
+        private Lazy<IBaseRepository<ConversationParticipant>> conversationParticipants;
+        private Lazy<IMessageRepository> messages;
 
         public UnitOfWork(AppDbContext context)
         {
@@ -45,6 +48,9 @@ namespace StudentManagementSystem.DAL.DataContext
             scheduleSlots = new Lazy<IBaseRepository<ScheduleSlot>>(() => new BaseRepository<ScheduleSlot>(dbcontext));
             sections = new Lazy<IBaseRepository<Section>>(() => new BaseRepository<Section>(dbcontext));
             timeSlots = new Lazy<IBaseRepository<TimeSlot>>(() => new BaseRepository<TimeSlot>(dbcontext));
+            messages = new Lazy<IMessageRepository>(() => new MessageRepository(dbcontext));
+            conversations = new Lazy<IConversationRepository>(() => new ConversationRepository(dbcontext));
+            conversationParticipants = new Lazy<IBaseRepository<ConversationParticipant>>(() => new BaseRepository<ConversationParticipant>(dbcontext));
             refreshTokens = new Lazy<IBaseRepository<RefreshToken>>(
     () => new BaseRepository<RefreshToken>(dbcontext)
 );
@@ -67,6 +73,9 @@ namespace StudentManagementSystem.DAL.DataContext
         public IBaseRepository<AcademicPlan> AcademicPlans => academicPlans.Value;
         public IBaseRepository<AcademicPlanCourse> AcademicPlanCourses => academicPlanCourses.Value;
         public IBaseRepository<RefreshToken> RefreshTokens => refreshTokens.Value;
+        public IConversationRepository Conversations => conversations.Value;
+        public IBaseRepository<ConversationParticipant> ConversationParticipants => conversationParticipants.Value;
+        public IMessageRepository Messages => messages.Value;
 
         public DbContext Context => dbcontext;
 
