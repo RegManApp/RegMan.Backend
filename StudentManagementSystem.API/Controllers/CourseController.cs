@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using StudentManagementSystem.API.Common;
 using StudentManagementSystem.BusinessLayer.Contracts;
+using StudentManagementSystem.BusinessLayer.DTOs.Common;
 using StudentManagementSystem.BusinessLayer.DTOs.CourseDTOs;
 
 namespace StudentManagementSystem.API.Controllers
@@ -35,18 +36,24 @@ namespace StudentManagementSystem.API.Controllers
         }
 
         // =========================
-        // Get All Courses (Summary)
+        // Get All Courses (Summary) - Paginated
         // Admin + Instructor + Student
         // =========================
         [Authorize(Roles = "Admin,Instructor,Student")]
         [HttpGet]
         public async Task<IActionResult> GetAllCoursesAsync(
-            [FromQuery] string? courseName,
-            [FromQuery] int? creditHours,
-            [FromQuery] string? courseCode,
-            [FromQuery] int? courseCategoryId)
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 12,
+            [FromQuery] string? search = null,
+            [FromQuery] string? courseName = null,
+            [FromQuery] int? creditHours = null,
+            [FromQuery] string? courseCode = null,
+            [FromQuery] int? courseCategoryId = null)
         {
-            var courses = await courseService.GetAllCoursesAsync(
+            var courses = await courseService.GetAllCoursesPaginatedAsync(
+                page,
+                pageSize,
+                search,
                 courseName,
                 creditHours,
                 courseCode,
@@ -54,7 +61,7 @@ namespace StudentManagementSystem.API.Controllers
             );
 
             return Ok(
-                ApiResponse<IEnumerable<ViewCourseSummaryDTO>>
+                ApiResponse<PaginatedResponse<ViewCourseSummaryDTO>>
                     .SuccessResponse(courses)
             );
         }

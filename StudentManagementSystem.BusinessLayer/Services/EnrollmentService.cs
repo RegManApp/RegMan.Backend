@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using StudentManagementSystem.BusinessLayer.Contracts;
+using StudentManagementSystem.BusinessLayer.DTOs.EnrollmentDTOs;
 using StudentManagementSystem.DAL.Contracts;
 using StudentManagementSystem.DAL.Entities;
 
@@ -100,5 +101,52 @@ internal class EnrollmentService : IEnrollmentService
             "Section",
             sectionId.ToString()
         );
+    }
+
+    // =====================================
+    // Count All Enrollments
+    // =====================================
+    public async Task<int> CountAllAsync()
+    {
+        return await unitOfWork.Enrollments.GetAllAsQueryable().CountAsync();
+    }
+
+    // =====================================
+    // Get Student Enrollments
+    // =====================================
+    public async Task<IEnumerable<ViewEnrollmentDTO>> GetStudentEnrollmentsAsync(string studentUserId)
+    {
+        var student = await unitOfWork.StudentProfiles
+            .GetAllAsQueryable()
+            .FirstOrDefaultAsync(s => s.UserId == studentUserId)
+            ?? throw new Exception("Student not found");
+
+        var enrollments = await unitOfWork.Enrollments
+            .GetAllAsQueryable()
+            .Include(e => e.Section)
+                .ThenInclude(s => s.Course)
+            .Include(e => e.Section)
+                .ThenInclude(s => s.Instructor)
+                    .ThenInclude(i => i.User)
+            .Where(e => e.StudentId == student.StudentId)
+            .Select(e => new ViewEnrollmentDTO
+            {
+                EnrollmentId = e.EnrollmentId,
+                SectionId = e.SectionId,
+                StudentId = e.StudentId,
+                EnrolledAt = e.EnrolledAt,
+                Grade = e.Grade,
+                Status = (int)e.Status,
+                CourseId = e.Section.Course.CourseId,
+                CourseName = e.Section.Course.CourseName,
+                CourseCode = e.Section.Course.CourseCode,
+                CreditHours = e.Section.Course.CreditHours,
+                SectionName = e.Section.SectionName,
+                Semester = e.Section.Semester,
+                InstructorName = e.Section.Instructor.User.FullName
+            })
+            .ToListAsync();
+
+        return enrollments;
     }
 }

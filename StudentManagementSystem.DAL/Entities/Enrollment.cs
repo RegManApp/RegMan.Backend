@@ -4,6 +4,8 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace StudentManagementSystem.DAL.Entities
 {
+    public enum Status { Enrolled, Dropped, Completed }
+
     public class Enrollment
     {
         [Key]
@@ -17,6 +19,10 @@ namespace StudentManagementSystem.DAL.Entities
 
         [Required]
         public int SectionId { get; set; }
+
+        // Grade (A, B, C, D, F, etc.)
+        public string? Grade { get; set; }
+
         //Nav properties
         public StudentProfile? Student { get; set; }
         public Section? Section { get; set; }
@@ -45,5 +51,3 @@ namespace StudentManagementSystem.DAL.Entities
 
     }
 }
-
-public enum Status { Enrolled, Dropped, Completed };

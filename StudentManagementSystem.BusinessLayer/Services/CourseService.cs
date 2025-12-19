@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using StudentManagementSystem.BusinessLayer.Contracts;
+using StudentManagementSystem.BusinessLayer.DTOs.Common;
 using StudentManagementSystem.BusinessLayer.DTOs.CourseDTOs;
 using StudentManagementSystem.DAL.Contracts;
 using StudentManagementSystem.DAL.Entities;
@@ -143,6 +144,61 @@ namespace StudentManagementSystem.BusinessLayer.Services
                     CourseCode = c.CourseCode
                 })
                 .ToListAsync();
+        }
+
+        // =========================
+        // Get All Paginated
+        // =========================
+        public async Task<PaginatedResponse<ViewCourseSummaryDTO>> GetAllCoursesPaginatedAsync(
+            int page,
+            int pageSize,
+            string? search,
+            string? courseName,
+            int? creditHours,
+            string? courseCode,
+            int? courseCategoryId)
+        {
+            var query = unitOfWork.Courses.GetAllAsQueryable();
+
+            // General search filter
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var searchLower = search.ToLower();
+                query = query.Where(c =>
+                    c.CourseName.ToLower().Contains(searchLower) ||
+                    c.CourseCode.ToLower().Contains(searchLower) ||
+                    (c.Description != null && c.Description.ToLower().Contains(searchLower)));
+            }
+
+            // Specific filters
+            if (!string.IsNullOrWhiteSpace(courseName))
+                query = query.Where(c => c.CourseName.Contains(courseName));
+
+            if (creditHours.HasValue)
+                query = query.Where(c => c.CreditHours == creditHours.Value);
+
+            if (!string.IsNullOrWhiteSpace(courseCode))
+                query = query.Where(c => c.CourseCode.Contains(courseCode));
+
+            if (courseCategoryId.HasValue)
+                query = query.Where(c => (int)c.CourseCategory == courseCategoryId.Value);
+
+            var totalItems = await query.CountAsync();
+
+            var items = await query
+                .OrderBy(c => c.CourseName)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(c => new ViewCourseSummaryDTO
+                {
+                    CourseId = c.CourseId,
+                    CourseName = c.CourseName,
+                    CreditHours = c.CreditHours,
+                    CourseCode = c.CourseCode
+                })
+                .ToListAsync();
+
+            return new PaginatedResponse<ViewCourseSummaryDTO>(items, totalItems, page, pageSize);
         }
 
         // =========================

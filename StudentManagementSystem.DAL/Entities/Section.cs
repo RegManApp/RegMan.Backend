@@ -9,6 +9,10 @@ namespace StudentManagementSystem.DAL.Entities
     {
         [Key]
         public int SectionId { get; set; }
+
+        // Section name (e.g., "Section A", "Lab 1", etc.)
+        public string? SectionName { get; set; }
+
         [Required]
         public string Semester { get; set; } = string.Empty;
         public DateTime Year { get; set; }
