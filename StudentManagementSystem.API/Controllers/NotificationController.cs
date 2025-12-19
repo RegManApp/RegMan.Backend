@@ -28,45 +28,57 @@ namespace StudentManagementSystem.API.Controllers
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 20)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-            var query = _context.Notifications
-                .Where(n => n.UserId == userId);
-
-            if (unreadOnly == true)
-                query = query.Where(n => !n.IsRead);
-
-            var totalCount = await query.CountAsync();
-            var unreadCount = await _context.Notifications
-                .CountAsync(n => n.UserId == userId && !n.IsRead);
-
-            var notifications = await query
-                .OrderByDescending(n => n.CreatedAt)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .Select(n => new
-                {
-                    n.NotificationId,
-                    n.Type,
-                    n.Title,
-                    n.Message,
-                    n.EntityType,
-                    n.EntityId,
-                    n.IsRead,
-                    n.ReadAt,
-                    n.CreatedAt
-                })
-                .ToListAsync();
-
-            return Ok(new
+            try
             {
-                notifications,
-                totalCount,
-                unreadCount,
-                page,
-                pageSize,
-                totalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
-            });
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrEmpty(userId))
+                {
+                    return Unauthorized(new { message = "User not authenticated or userId missing." });
+                }
+
+                var query = _context.Notifications
+                    .Where(n => n.UserId == userId);
+
+                if (unreadOnly == true)
+                    query = query.Where(n => !n.IsRead);
+
+                var totalCount = await query.CountAsync();
+                var unreadCount = await _context.Notifications
+                    .CountAsync(n => n.UserId == userId && !n.IsRead);
+
+                var notifications = await query
+                    .OrderByDescending(n => n.CreatedAt)
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .Select(n => new
+                    {
+                        n.NotificationId,
+                        n.Type,
+                        n.Title,
+                        n.Message,
+                        n.EntityType,
+                        n.EntityId,
+                        n.IsRead,
+                        n.ReadAt,
+                        n.CreatedAt
+                    })
+                    .ToListAsync();
+
+                return Ok(new
+                {
+                    notifications,
+                    totalCount,
+                    unreadCount,
+                    page,
+                    pageSize,
+                    totalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
+                });
+            }
+            catch (Exception ex)
+            {
+                // Log the exception in production
+                return StatusCode(500, new { message = "Failed to load notifications.", error = ex.Message });
+            }
         }
 
         /// <summary>
