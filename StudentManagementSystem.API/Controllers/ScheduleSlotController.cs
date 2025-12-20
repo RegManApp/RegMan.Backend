@@ -76,5 +76,17 @@ namespace StudentManagementSystem.API.Controllers
             var result = await scheduleSlotService.GetByRoomAsync(roomId);
             return Ok(result);
         }
+
+        // =========================
+        // Delete Schedule Slot
+        // Admin only
+        // =========================
+        [Authorize(Roles = "Admin")]
+        [HttpDelete("{id:int}")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            await scheduleSlotService.DeleteAsync(id);
+            return Ok(new { message = "Schedule slot deleted successfully." });
+        }
     }
 }

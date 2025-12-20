@@ -167,6 +167,30 @@ namespace StudentManagementSystem.BusinessLayer.Services
         }
 
         // =========================
+        // Delete ScheduleSlot
+        // =========================
+        public async Task DeleteAsync(int scheduleSlotId)
+        {
+            var existing = await unitOfWork.ScheduleSlots.GetByIdAsync(scheduleSlotId)
+                ?? throw new Exception("ScheduleSlot not found.");
+
+            var deleted = await unitOfWork.ScheduleSlots.DeleteAsync(scheduleSlotId);
+            if (!deleted)
+                throw new Exception("Failed to delete schedule slot.");
+
+            await unitOfWork.SaveChangesAsync();
+
+            var (userId, email) = GetUserInfo();
+            await auditLogService.LogAsync(
+                userId,
+                email,
+                "DELETE",
+                "ScheduleSlot",
+                scheduleSlotId.ToString()
+            );
+        }
+
+        // =========================
         // Shared Query Projection
         // =========================
         private IQueryable<ViewScheduleSlotDTO> BuildQuery()

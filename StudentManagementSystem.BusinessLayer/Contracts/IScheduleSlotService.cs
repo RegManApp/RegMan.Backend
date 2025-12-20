@@ -13,5 +13,7 @@ namespace StudentManagementSystem.BusinessLayer.Contracts
         Task<IEnumerable<ViewScheduleSlotDTO>> GetByRoomAsync(int roomId);
 
         Task<IEnumerable<ViewScheduleSlotDTO>> GetAllAsync();
+
+        Task DeleteAsync(int scheduleSlotId);
     }
 }
