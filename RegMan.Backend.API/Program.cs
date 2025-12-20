@@ -239,7 +239,7 @@ namespace RegMan.Backend.API
 
             app.UseCors("AllowRegman");
 
-            // app.UseHttpsRedirection(); // Temporarily disabled for local testing
+            app.UseHttpsRedirection(); // Temporarily disabled for local testing
 
             app.UseAuthentication();
             app.UseAuthorization();
