@@ -7,7 +7,9 @@ public interface IInstructorService
 {
     Task<ViewInstructorDTO> CreateAsync(CreateInstructorDTO dto);
     Task<IEnumerable<ViewInstructorDTO>> GetAllAsync();
-    Task<ViewInstructorDTO> GetByIdAsync(int id);
-
+    Task<ViewInstructorDTO?> GetByIdAsync(int id);
+    Task<ViewInstructorDTO?> GetByUserIdAsync(string userId);
+    Task<ViewInstructorDTO?> UpdateAsync(int id, UpdateInstructorDTO dto);
+    Task<bool> DeleteAsync(int id);
     Task<IEnumerable<ViewScheduleSlotDTO>> GetScheduleAsync(int instructorId);
 }

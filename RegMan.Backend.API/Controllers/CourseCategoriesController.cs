@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Collections.Generic;
+using RegMan.Backend.API.Common;
+using RegMan.Backend.DAL.Entities;
 
 namespace RegMan.Backend.API.Controllers
 {
@@ -9,20 +10,36 @@ namespace RegMan.Backend.API.Controllers
     [Authorize]
     public class CourseCategoriesController : ControllerBase
     {
-        // For demo: static list. Replace with DB/service if needed.
-        private static readonly List<object> Categories = new List<object>
-        {
-            new { Id = 1, Name = "Core" },
-            new { Id = 2, Name = "Elective" },
-            new { Id = 3, Name = "General Education" },
-            new { Id = 4, Name = "Major" },
-            new { Id = 5, Name = "Minor" }
-        };
-
+        // Get all course categories from enum
         [HttpGet]
         public IActionResult GetCategories()
         {
-            return Ok(Categories);
+            var categories = Enum.GetValues<CourseCategory>()
+                .Select((c, index) => new
+                {
+                    Id = (int)c,
+                    Name = c.ToString(),
+                    Value = c.ToString()
+                })
+                .ToList();
+
+            return Ok(ApiResponse<object>.SuccessResponse(categories));
+        }
+
+        // Get category by ID
+        [HttpGet("{id}")]
+        public IActionResult GetCategoryById(int id)
+        {
+            if (!Enum.IsDefined(typeof(CourseCategory), id))
+                return NotFound(ApiResponse<string>.FailureResponse("Category not found", 404));
+
+            var category = (CourseCategory)id;
+            return Ok(ApiResponse<object>.SuccessResponse(new
+            {
+                Id = id,
+                Name = category.ToString(),
+                Value = category.ToString()
+            }));
         }
     }
 }

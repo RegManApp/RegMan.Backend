@@ -41,11 +41,16 @@ namespace RegMan.Backend.API.Controllers
 
         // =========================
         // Register (AUDIT LOG)
+        // Public registration is ALWAYS as Student
+        // Admins create other roles via AdminController
         // =========================
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterDTO dto)
         {
-            if (!await roleManager.RoleExistsAsync(dto.Role))
+            // Force role to Student for public registration - prevent role escalation
+            const string allowedRole = "Student";
+
+            if (!await roleManager.RoleExistsAsync(allowedRole))
             {
                 return BadRequest(ApiResponse<string>.FailureResponse(
                     "Role does not exist",
@@ -59,7 +64,7 @@ namespace RegMan.Backend.API.Controllers
                 Email = dto.Email,
                 FullName = dto.FullName,
                 Address = dto.Address,
-                Role = dto.Role
+                Role = allowedRole // Always Student for public registration
             };
 
             var result = await userManager.CreateAsync(user, dto.Password);
@@ -73,7 +78,29 @@ namespace RegMan.Backend.API.Controllers
                 ));
             }
 
-            await userManager.AddToRoleAsync(user, dto.Role);
+            await userManager.AddToRoleAsync(user, allowedRole);
+
+            // Create StudentProfile and Cart for the new student
+            var defaultAcademicPlan = await unitOfWork.AcademicPlans.GetAllAsQueryable().FirstOrDefaultAsync();
+            var studentProfile = new StudentProfile
+            {
+                UserId = user.Id,
+                FamilyContact = "",
+                CompletedCredits = 0,
+                RegisteredCredits = 0,
+                GPA = 0.0,
+                AcademicPlanId = defaultAcademicPlan?.AcademicPlanId ?? "default"
+            };
+            await unitOfWork.StudentProfiles.AddAsync(studentProfile);
+            await unitOfWork.SaveChangesAsync();
+
+            // Create Cart for student
+            var cart = new Cart
+            {
+                StudentProfileId = studentProfile.StudentId
+            };
+            await unitOfWork.Carts.AddAsync(cart);
+            await unitOfWork.SaveChangesAsync();
 
             // ===== Audit Log =====
             await auditLogService.LogAsync(

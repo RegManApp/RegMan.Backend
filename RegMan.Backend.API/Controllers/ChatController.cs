@@ -1,5 +1,7 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using RegMan.Backend.API.Common;
 using RegMan.Backend.BusinessLayer.Contracts;
 using System.Security.Claims;
 
@@ -7,6 +9,7 @@ namespace RegMan.Backend.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize] // Require authentication for all chat endpoints
     public class ChatController : ControllerBase
     {
         private readonly IChatService chatService;
@@ -14,39 +17,36 @@ namespace RegMan.Backend.API.Controllers
         {
             this.chatService = chatService;
         }
-        private string GetStudentID()
+        private string GetUserId()
         {
-            var studentId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(studentId))
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
                 throw new InvalidOperationException("User ID claim (NameIdentifier) is missing from the authorized token.");
-            return studentId;
+            return userId;
         }
+
         [HttpPost]
         public async Task<IActionResult> SendMessageAsync([FromQuery] string receiverId, [FromQuery] string textMessage)
         {
-            var senderId = GetStudentID();
-            // In a real application, you would get the senderId from the authenticated user context
-           // string senderId = "49deef11-c383-4758-8509-f6006d1281da"; // Placeholder for demonstration
+            var senderId = GetUserId();
             var conversation = await chatService.SendMessageAsync(senderId, receiverId, textMessage);
-            return Ok(conversation);
+            return Ok(ApiResponse<object>.SuccessResponse(conversation, "Message sent successfully"));
         }
+
         [HttpGet]
         public async Task<IActionResult> GetConversationsAsync()
         {
-            var senderId = GetStudentID();
-            // In a real application, you would get the senderId from the authenticated user context
-           // string senderId = "49deef11-c383-4758-8509-f6006d1281da"; // Placeholder for demonstration
-            var conversation = await chatService.GetUserConversationsAsync(senderId);
-            return Ok(conversation);
+            var senderId = GetUserId();
+            var conversations = await chatService.GetUserConversationsAsync(senderId);
+            return Ok(ApiResponse<object>.SuccessResponse(conversations));
         }
-        [HttpGet("convoId")]
-        public async Task<IActionResult> GetConversationsAsync(int convoId)
+
+        [HttpGet("{convoId}")]
+        public async Task<IActionResult> GetConversationByIdAsync(int convoId, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
-            var senderId = GetStudentID();
-            // In a real application, you would get the senderId from the authenticated user context
-           // string senderId = "49deef11-c383-4758-8509-f6006d1281da"; // Placeholder for demonstration
-            var conversation = await chatService.ViewConversationAsync(senderId, convoId,1,10);
-            return Ok(conversation);
+            var senderId = GetUserId();
+            var conversation = await chatService.ViewConversationAsync(senderId, convoId, page, pageSize);
+            return Ok(ApiResponse<object>.SuccessResponse(conversation));
         }
     }
 }

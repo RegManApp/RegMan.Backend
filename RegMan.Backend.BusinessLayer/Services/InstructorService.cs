@@ -40,14 +40,16 @@ internal class InstructorService : IInstructorService
 
         var result = await userManager.CreateAsync(user, dto.Password);
         if (!result.Succeeded)
-            throw new Exception("Failed to create instructor user.");
+            throw new Exception("Failed to create instructor user: " + string.Join(", ", result.Errors.Select(e => e.Description)));
 
         await userManager.AddToRoleAsync(user, "Instructor");
 
         var instructor = new InstructorProfile
         {
             UserId = user.Id,
-            Title = dto.Title
+            Title = dto.Title,
+            Degree = InstructorDegree.Lecturer,
+            Department = "General"
         };
 
         await unitOfWork.InstructorProfiles.AddAsync(instructor);
@@ -56,8 +58,13 @@ internal class InstructorService : IInstructorService
         return new ViewInstructorDTO
         {
             InstructorId = instructor.InstructorId,
+            UserId = user.Id,
             FullName = user.FullName,
-            Email = user.Email!
+            Email = user.Email!,
+            Title = instructor.Title,
+            Degree = instructor.Degree,
+            Department = instructor.Department,
+            Address = user.Address
         };
     }
 
@@ -72,8 +79,13 @@ internal class InstructorService : IInstructorService
             .Select(i => new ViewInstructorDTO
             {
                 InstructorId = i.InstructorId,
+                UserId = i.UserId,
                 FullName = i.User.FullName,
-                Email = i.User.Email!
+                Email = i.User.Email!,
+                Title = i.Title,
+                Degree = i.Degree,
+                Department = i.Department,
+                Address = i.User.Address
             })
             .ToListAsync();
     }
@@ -81,20 +93,130 @@ internal class InstructorService : IInstructorService
     // ======================
     // Get By Id
     // ======================
-    public async Task<ViewInstructorDTO> GetByIdAsync(int id)
+    public async Task<ViewInstructorDTO?> GetByIdAsync(int id)
     {
         var instructor = await unitOfWork.InstructorProfiles
             .GetAllAsQueryable()
             .Include(i => i.User)
-            .FirstOrDefaultAsync(i => i.InstructorId == id)
-            ?? throw new Exception("Instructor not found.");
+            .FirstOrDefaultAsync(i => i.InstructorId == id);
+
+        if (instructor == null)
+            return null;
 
         return new ViewInstructorDTO
         {
             InstructorId = instructor.InstructorId,
+            UserId = instructor.UserId,
             FullName = instructor.User.FullName,
-            Email = instructor.User.Email!
+            Email = instructor.User.Email!,
+            Title = instructor.Title,
+            Degree = instructor.Degree,
+            Department = instructor.Department,
+            Address = instructor.User.Address
         };
+    }
+
+    // ======================
+    // Get By User Id
+    // ======================
+    public async Task<ViewInstructorDTO?> GetByUserIdAsync(string userId)
+    {
+        var instructor = await unitOfWork.InstructorProfiles
+            .GetAllAsQueryable()
+            .Include(i => i.User)
+            .FirstOrDefaultAsync(i => i.UserId == userId);
+
+        if (instructor == null)
+            return null;
+
+        return new ViewInstructorDTO
+        {
+            InstructorId = instructor.InstructorId,
+            UserId = instructor.UserId,
+            FullName = instructor.User.FullName,
+            Email = instructor.User.Email!,
+            Title = instructor.Title,
+            Degree = instructor.Degree,
+            Department = instructor.Department,
+            Address = instructor.User.Address
+        };
+    }
+
+    // ======================
+    // Update Instructor
+    // ======================
+    public async Task<ViewInstructorDTO?> UpdateAsync(int id, UpdateInstructorDTO dto)
+    {
+        var instructor = await unitOfWork.InstructorProfiles
+            .GetAllAsQueryable()
+            .Include(i => i.User)
+            .FirstOrDefaultAsync(i => i.InstructorId == id);
+
+        if (instructor == null)
+            return null;
+
+        // Update User fields
+        if (!string.IsNullOrWhiteSpace(dto.FullName))
+            instructor.User.FullName = dto.FullName;
+
+        if (!string.IsNullOrWhiteSpace(dto.Email) && dto.Email != instructor.User.Email)
+        {
+            var existingUser = await userManager.FindByEmailAsync(dto.Email);
+            if (existingUser != null && existingUser.Id != instructor.UserId)
+                throw new Exception("Email already in use by another user");
+
+            instructor.User.Email = dto.Email;
+            instructor.User.UserName = dto.Email;
+            instructor.User.NormalizedEmail = dto.Email.ToUpper();
+            instructor.User.NormalizedUserName = dto.Email.ToUpper();
+        }
+
+        if (!string.IsNullOrWhiteSpace(dto.Address))
+            instructor.User.Address = dto.Address;
+
+        // Update InstructorProfile fields
+        if (!string.IsNullOrWhiteSpace(dto.Title))
+            instructor.Title = dto.Title;
+
+        if (dto.Degree.HasValue)
+            instructor.Degree = dto.Degree.Value;
+
+        if (dto.Department != null)
+            instructor.Department = dto.Department;
+
+        await userManager.UpdateAsync(instructor.User);
+        await unitOfWork.SaveChangesAsync();
+
+        return new ViewInstructorDTO
+        {
+            InstructorId = instructor.InstructorId,
+            UserId = instructor.UserId,
+            FullName = instructor.User.FullName,
+            Email = instructor.User.Email!,
+            Title = instructor.Title,
+            Degree = instructor.Degree,
+            Department = instructor.Department,
+            Address = instructor.User.Address
+        };
+    }
+
+    // ======================
+    // Delete Instructor
+    // ======================
+    public async Task<bool> DeleteAsync(int id)
+    {
+        var instructor = await unitOfWork.InstructorProfiles
+            .GetAllAsQueryable()
+            .Include(i => i.User)
+            .FirstOrDefaultAsync(i => i.InstructorId == id);
+
+        if (instructor == null)
+            return false;
+
+        // Delete the user (cascade should handle the profile)
+        await userManager.DeleteAsync(instructor.User);
+
+        return true;
     }
 
     // ======================

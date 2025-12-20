@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RegMan.Backend.API.Common;
 using RegMan.Backend.BusinessLayer.Contracts;
 using RegMan.Backend.BusinessLayer.DTOs.InstructorDTOs;
 using System.Security.Claims;
@@ -8,7 +9,7 @@ namespace RegMan.Backend.API.Controllers;
 
 [ApiController]
 [Route("api/instructor")]
-[Authorize] // لازم يكون عامل Login
+[Authorize]
 public class InstructorController : ControllerBase
 {
     private readonly IInstructorService instructorService;
@@ -25,25 +26,64 @@ public class InstructorController : ControllerBase
     [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<IActionResult> Create(CreateInstructorDTO dto)
-        => Ok(await instructorService.CreateAsync(dto));
+    {
+        var result = await instructorService.CreateAsync(dto);
+        return Ok(ApiResponse<object>.SuccessResponse(result, "Instructor created successfully"));
+    }
 
     // =========================
     // Get All Instructors
-    // Admin only
+    // Admin, Student (for booking office hours)
     // =========================
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Student,Instructor")]
     [HttpGet]
     public async Task<IActionResult> GetAll()
-        => Ok(await instructorService.GetAllAsync());
+    {
+        var instructors = await instructorService.GetAllAsync();
+        return Ok(ApiResponse<object>.SuccessResponse(instructors));
+    }
 
     // =========================
     // Get Instructor By Id
+    // Admin, Student (for viewing instructor info)
+    // =========================
+    [Authorize(Roles = "Admin,Student,Instructor")]
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(int id)
+    {
+        var instructor = await instructorService.GetByIdAsync(id);
+        if (instructor == null)
+            return NotFound(ApiResponse<string>.FailureResponse("Instructor not found", 404));
+        return Ok(ApiResponse<object>.SuccessResponse(instructor));
+    }
+
+    // =========================
+    // Update Instructor
     // Admin only
     // =========================
     [Authorize(Roles = "Admin")]
-    [HttpGet("{id}")]
-    public async Task<IActionResult> GetById(int id)
-        => Ok(await instructorService.GetByIdAsync(id));
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Update(int id, [FromBody] UpdateInstructorDTO dto)
+    {
+        var result = await instructorService.UpdateAsync(id, dto);
+        if (result == null)
+            return NotFound(ApiResponse<string>.FailureResponse("Instructor not found", 404));
+        return Ok(ApiResponse<object>.SuccessResponse(result, "Instructor updated successfully"));
+    }
+
+    // =========================
+    // Delete Instructor
+    // Admin only
+    // =========================
+    [Authorize(Roles = "Admin")]
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var success = await instructorService.DeleteAsync(id);
+        if (!success)
+            return NotFound(ApiResponse<string>.FailureResponse("Instructor not found", 404));
+        return Ok(ApiResponse<string>.SuccessResponse("Instructor deleted successfully"));
+    }
 
     // =========================
     // Get Instructor Schedule
@@ -59,13 +99,31 @@ public class InstructorController : ControllerBase
             if (userId == null)
                 return Unauthorized();
 
-            // InstructorProfile.UserId == BaseUser.Id
             var instructor = await instructorService.GetByIdAsync(id);
-
             if (instructor == null)
-                return NotFound();
+                return NotFound(ApiResponse<string>.FailureResponse("Instructor not found", 404));
         }
 
-        return Ok(await instructorService.GetScheduleAsync(id));
+        var schedule = await instructorService.GetScheduleAsync(id);
+        return Ok(ApiResponse<object>.SuccessResponse(schedule));
+    }
+
+    // =========================
+    // Get My Schedule (for logged in instructor)
+    // =========================
+    [Authorize(Roles = "Instructor")]
+    [HttpGet("my-schedule")]
+    public async Task<IActionResult> GetMySchedule()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null)
+            return Unauthorized();
+
+        var instructor = await instructorService.GetByUserIdAsync(userId);
+        if (instructor == null)
+            return NotFound(ApiResponse<string>.FailureResponse("Instructor profile not found", 404));
+
+        var schedule = await instructorService.GetScheduleAsync(instructor.InstructorId);
+        return Ok(ApiResponse<object>.SuccessResponse(schedule));
     }
 }

@@ -60,10 +60,20 @@ namespace RegMan.Backend.API.Controllers
 
         // =========================
         // Create User
+        // Admin can create users with any valid role
         // =========================
         [HttpPost("create-user")]
         public async Task<IActionResult> CreateUser([FromBody] CreateUserDTO dto)
         {
+            var validRoles = new[] { "Admin", "Student", "Instructor" };
+            if (!validRoles.Contains(dto.Role))
+            {
+                return BadRequest(ApiResponse<string>.FailureResponse(
+                    "Invalid role. Valid roles are: Admin, Student, Instructor",
+                    StatusCodes.Status400BadRequest
+                ));
+            }
+
             if (!await roleManager.RoleExistsAsync(dto.Role))
             {
                 return BadRequest(ApiResponse<string>.FailureResponse(
@@ -93,6 +103,53 @@ namespace RegMan.Backend.API.Controllers
 
             await userManager.AddToRoleAsync(user, dto.Role);
 
+            // Create role-specific profile
+            if (dto.Role == "Student")
+            {
+                var defaultAcademicPlan = await unitOfWork.AcademicPlans.GetAllAsQueryable().FirstOrDefaultAsync();
+                var studentProfile = new StudentProfile
+                {
+                    UserId = user.Id,
+                    FamilyContact = dto.FamilyContact ?? "",
+                    CompletedCredits = 0,
+                    RegisteredCredits = 0,
+                    GPA = 0.0,
+                    AcademicPlanId = dto.AcademicPlanId ?? defaultAcademicPlan?.AcademicPlanId ?? "default"
+                };
+                await unitOfWork.StudentProfiles.AddAsync(studentProfile);
+                await unitOfWork.SaveChangesAsync();
+
+                // Create Cart for student
+                var cart = new Cart
+                {
+                    StudentProfileId = studentProfile.StudentId
+                };
+                await unitOfWork.Carts.AddAsync(cart);
+                await unitOfWork.SaveChangesAsync();
+            }
+            else if (dto.Role == "Instructor")
+            {
+                var instructorProfile = new InstructorProfile
+                {
+                    UserId = user.Id,
+                    Title = dto.Title ?? "Instructor",
+                    Degree = dto.Degree ?? InstructorDegree.Lecturer,
+                    Department = dto.Department ?? "General"
+                };
+                await unitOfWork.InstructorProfiles.AddAsync(instructorProfile);
+                await unitOfWork.SaveChangesAsync();
+            }
+            else if (dto.Role == "Admin")
+            {
+                var adminProfile = new AdminProfile
+                {
+                    UserId = user.Id,
+                    Title = dto.Title ?? "Administrator"
+                };
+                await unitOfWork.AdminProfiles.AddAsync(adminProfile);
+                await unitOfWork.SaveChangesAsync();
+            }
+
             // ===== Audit Log =====
             var (adminId, adminEmail) = GetAdminInfo();
             await auditLogService.LogAsync(
@@ -103,7 +160,8 @@ namespace RegMan.Backend.API.Controllers
                 user.Id
             );
 
-            return Ok(ApiResponse<string>.SuccessResponse(
+            return Ok(ApiResponse<object>.SuccessResponse(
+                new { UserId = user.Id, user.Email, user.FullName, user.Role },
                 "User created successfully"
             ));
         }

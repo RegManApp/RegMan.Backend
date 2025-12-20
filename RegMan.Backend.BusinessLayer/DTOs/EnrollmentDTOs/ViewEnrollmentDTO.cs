@@ -7,7 +7,7 @@ namespace RegMan.Backend.BusinessLayer.DTOs.EnrollmentDTOs
         public int StudentId { get; set; }
         public DateTime EnrolledAt { get; set; }
         public string? Grade { get; set; }
-        public int Status { get; set; } // 0 = Enrolled, 1 = Completed, 2 = Dropped
+        public int Status { get; set; } // 0 = Pending, 1 = Enrolled, 2 = Dropped, 3 = Completed, 4 = Declined
 
         // Course info
         public int CourseId { get; set; }
@@ -21,5 +21,14 @@ namespace RegMan.Backend.BusinessLayer.DTOs.EnrollmentDTOs
 
         // Instructor info
         public string? InstructorName { get; set; }
+
+        // Student info (for admin views)
+        public string? StudentName { get; set; }
+        public string? StudentEmail { get; set; }
+
+        // Approval info
+        public string? DeclineReason { get; set; }
+        public string? ApprovedBy { get; set; }
+        public DateTime? ApprovedAt { get; set; }
     }
 }
