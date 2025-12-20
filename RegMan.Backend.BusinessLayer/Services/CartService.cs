@@ -35,8 +35,8 @@ namespace RegMan.Backend.BusinessLayer.Services
 
             if (!slotExists)
                 throw new InvalidOperationException($"Schedule slot with ID {scheduleSlotId} does not exist.");
-            
-            
+
+
             //preventing adding same schedule slot multiple times
             bool alreadyInCart = await cartItemRepository.GetAllAsQueryable().AsNoTracking().AnyAsync(ci => ci.CartId == cartId && ci.ScheduleSlotId == scheduleSlotId);
             if (alreadyInCart)
@@ -51,6 +51,34 @@ namespace RegMan.Backend.BusinessLayer.Services
             await cartItemRepository.AddAsync(cartItem);
             await unitOfWork.SaveChangesAsync();
         }
+
+        // Add to cart by courseId - finds first available section with scheduleSlot
+        public async Task AddToCartByCourseAsync(string studentId, int courseId)
+        {
+            // Check if course exists
+            var courseExists = await unitOfWork.Courses
+                .GetAllAsQueryable()
+                .AsNoTracking()
+                .AnyAsync(c => c.CourseId == courseId);
+
+            if (!courseExists)
+                throw new InvalidOperationException($"Course with ID {courseId} does not exist.");
+
+            // Find an available section with a scheduleSlot for this course
+            var availableSlot = await unitOfWork.ScheduleSlots
+                .GetAllAsQueryable()
+                .AsNoTracking()
+                .Include(ss => ss.Section)
+                .Where(ss => ss.Section.CourseId == courseId && ss.Section.AvailableSeats > 0)
+                .OrderBy(ss => ss.SectionId)
+                .FirstOrDefaultAsync();
+
+            if (availableSlot == null)
+                throw new InvalidOperationException($"No available sections with schedule for course ID {courseId}. Please ensure the course has sections with available seats and schedules.");
+
+            // Use existing AddToCartAsync with the found scheduleSlotId
+            await AddToCartAsync(studentId, availableSlot.ScheduleSlotId);
+        }
         //DELETE
         public async Task<ViewCartDTO> RemoveFromCartAsync(string studentId, int cartItemId)
         {
@@ -58,10 +86,10 @@ namespace RegMan.Backend.BusinessLayer.Services
             int cartId = await ValidateStudentAndCart(studentId); //method checks both student and cart existence
             bool cartItemExists = await cartItemRepository.GetAllAsQueryable().AsNoTracking().AnyAsync(ci => ci.CartId == cartId && ci.CartItemId == cartItemId);
 
-             if (!cartItemExists)
-            
+            if (!cartItemExists)
+
                 throw new InvalidOperationException($"Cart item with ID {cartItemId} does not exist in the cart.");
-           
+
             bool deleted = await cartItemRepository.DeleteAsync(cartItemId);
             if (!deleted)
             {
@@ -78,10 +106,11 @@ namespace RegMan.Backend.BusinessLayer.Services
             List<ViewCartItemDTO> cartItems = await cartItemRepository.GetAllAsQueryable()
                 .AsNoTracking()
                 .Where(ci => ci.CartId == cartId)
-                .Select(ci=> new ViewCartItemDTO {
+                .Select(ci => new ViewCartItemDTO
+                {
                     CartItemId = ci.CartItemId,
                     ScheduleSlotId = ci.ScheduleSlotId,
-                    SectionName =$"{ ci.ScheduleSlot.Section.Course.CourseName} - Section {ci.ScheduleSlot.Section.SectionId}",
+                    SectionName = $"{ci.ScheduleSlot.Section.Course.CourseName} - Section {ci.ScheduleSlot.Section.SectionId}",
                     TimeSlot = $"{ci.ScheduleSlot.TimeSlot.StartTime} - {ci.ScheduleSlot.TimeSlot.EndTime}",
                     Room = $"{ci.ScheduleSlot.Room.Building} - {ci.ScheduleSlot.Room.RoomNumber}"
 
@@ -94,7 +123,7 @@ namespace RegMan.Backend.BusinessLayer.Services
             };
             return viewCartDTO;
         }
-        private async Task<int> ValidateStudentAndCart(string userId) 
+        private async Task<int> ValidateStudentAndCart(string userId)
         {
             StudentProfile? studentWithCart = await studentRepository.GetAllAsQueryable().AsNoTracking().Include(s => s.Cart).FirstOrDefaultAsync(s => s.UserId == userId);
             if (studentWithCart == null)

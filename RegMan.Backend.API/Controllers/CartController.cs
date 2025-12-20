@@ -28,7 +28,7 @@ namespace RegMan.Backend.API.Controllers
                 throw new InvalidOperationException("User ID claim (NameIdentifier) is missing from the authorized token.");
             return studentId;
         }
-        // Add To Cart
+        // Add To Cart by Schedule Slot ID
         [HttpPost]
         public async Task<IActionResult> AddToCartAsync([FromQuery] int scheduleSlotId)
         {
@@ -36,6 +36,16 @@ namespace RegMan.Backend.API.Controllers
             await cartService.AddToCartAsync(userId, scheduleSlotId);
             return Ok(ApiResponse<string>
                     .SuccessResponse("Added to cart successfully"));
+        }
+
+        // Add To Cart by Course ID (finds first available section/scheduleSlot)
+        [HttpPost("by-course/{courseId}")]
+        public async Task<IActionResult> AddToCartByCourseAsync(int courseId)
+        {
+            string userId = GetStudentID();
+            await cartService.AddToCartByCourseAsync(userId, courseId);
+            return Ok(ApiResponse<string>
+                    .SuccessResponse("Course added to cart successfully"));
         }
         // Remove From Cart
         [HttpDelete("{cartItemId}")]

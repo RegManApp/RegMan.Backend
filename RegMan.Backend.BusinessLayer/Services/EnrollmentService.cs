@@ -74,11 +74,25 @@ internal class EnrollmentService : IEnrollmentService
         var section = await unitOfWork.Sections
             .GetAllAsQueryable()
             .Include(s => s.Enrollments)
+            .Include(s => s.Course)
             .FirstOrDefaultAsync(s => s.SectionId == sectionId)
             ?? throw new Exception("Section not found");
 
-        if (section.Enrollments.Any(e => e.StudentId == student.StudentId))
+        // Check if already enrolled in this section
+        if (section.Enrollments.Any(e => e.StudentId == student.StudentId &&
+            (e.Status == Status.Enrolled || e.Status == Status.Pending)))
             throw new Exception("Student already enrolled in this section");
+
+        // Check if already enrolled in another section of the same course
+        var existingEnrollmentInCourse = await unitOfWork.Enrollments
+            .GetAllAsQueryable()
+            .Include(e => e.Section)
+            .AnyAsync(e => e.StudentId == student.StudentId &&
+                          e.Section.CourseId == section.CourseId &&
+                          (e.Status == Status.Enrolled || e.Status == Status.Pending));
+
+        if (existingEnrollmentInCourse)
+            throw new Exception($"Student is already enrolled in another section of {section.Course?.CourseName ?? "this course"}");
 
         if (section.AvailableSeats <= 0)
             throw new Exception("No available seats");
@@ -87,12 +101,14 @@ internal class EnrollmentService : IEnrollmentService
         {
             StudentId = student.StudentId,
             SectionId = sectionId,
+            Status = Status.Pending, // Start as pending, admin approves
             EnrolledAt = DateTime.UtcNow
         };
 
         section.AvailableSeats--;
 
         await unitOfWork.Enrollments.AddAsync(enrollment);
+        await unitOfWork.SaveChangesAsync();
 
         await auditLogService.LogAsync(
             student.UserId,
@@ -137,13 +153,18 @@ internal class EnrollmentService : IEnrollmentService
                 EnrolledAt = e.EnrolledAt,
                 Grade = e.Grade,
                 Status = (int)e.Status,
-                CourseId = e.Section.Course.CourseId,
-                CourseName = e.Section.Course.CourseName,
-                CourseCode = e.Section.Course.CourseCode,
-                CreditHours = e.Section.Course.CreditHours,
-                SectionName = e.Section.SectionName,
-                Semester = e.Section.Semester,
-                InstructorName = e.Section.Instructor.User.FullName
+                CourseId = e.Section != null && e.Section.Course != null ? e.Section.Course.CourseId : 0,
+                CourseName = e.Section != null && e.Section.Course != null ? e.Section.Course.CourseName : null,
+                CourseCode = e.Section != null && e.Section.Course != null ? e.Section.Course.CourseCode : null,
+                CreditHours = e.Section != null && e.Section.Course != null ? e.Section.Course.CreditHours : 0,
+                SectionName = e.Section != null ? e.Section.SectionName : null,
+                Semester = e.Section != null ? e.Section.Semester : null,
+                InstructorName = e.Section != null && e.Section.Instructor != null && e.Section.Instructor.User != null
+                    ? e.Section.Instructor.User.FullName
+                    : null,
+                DeclineReason = e.DeclineReason,
+                ApprovedBy = e.ApprovedBy,
+                ApprovedAt = e.ApprovedAt
             })
             .ToListAsync();
 

@@ -62,6 +62,41 @@ namespace RegMan.Backend.BusinessLayer.Services
             await sectionRepository.AddAsync(section);
             await unitOfWork.SaveChangesAsync();
 
+            // Create a schedule slot if RoomId and TimeSlotId are provided
+            var scheduleSlots = new List<ViewScheduleSlotDTO>();
+            if (dto.RoomId > 0 && dto.TimeSlotId > 0 && dto.InstructorId.HasValue)
+            {
+                var scheduleSlot = new ScheduleSlot
+                {
+                    SectionId = section.SectionId,
+                    RoomId = dto.RoomId,
+                    TimeSlotId = dto.TimeSlotId,
+                    InstructorId = dto.InstructorId.Value,
+                    SlotType = dto.SlotType
+                };
+
+                await unitOfWork.ScheduleSlots.AddAsync(scheduleSlot);
+                await unitOfWork.SaveChangesAsync();
+
+                // Load the slot with related data for response
+                var room = await unitOfWork.Rooms.GetByIdAsync(dto.RoomId);
+                var timeSlot = await unitOfWork.TimeSlots.GetByIdAsync(dto.TimeSlotId);
+
+                scheduleSlots.Add(new ViewScheduleSlotDTO
+                {
+                    ScheduleSlotId = scheduleSlot.ScheduleSlotId,
+                    SectionId = section.SectionId,
+                    SectionName = $"{course.CourseName} - Section {section.SectionId}",
+                    RoomId = dto.RoomId,
+                    Room = room != null ? $"{room.Building} {room.RoomNumber}" : "",
+                    TimeSlotId = dto.TimeSlotId,
+                    TimeSlot = timeSlot != null ? $"{timeSlot.Day} {timeSlot.StartTime:hh\\:mm}-{timeSlot.EndTime:hh\\:mm}" : "",
+                    InstructorId = dto.InstructorId.Value,
+                    InstructorName = instructorName ?? "",
+                    SlotType = dto.SlotType.ToString()
+                });
+            }
+
             return new ViewSectionDTO
             {
                 SectionId = section.SectionId,
@@ -71,7 +106,7 @@ namespace RegMan.Backend.BusinessLayer.Services
                 InstructorName = instructorName,
                 AvailableSeats = section.AvailableSeats,
                 CourseSummary = await courseService.GetCourseSummaryByIdAsync(section.CourseId),
-                ScheduleSlots = Enumerable.Empty<ViewScheduleSlotDTO>()
+                ScheduleSlots = scheduleSlots
             };
         }
 
