@@ -1,1 +1,1 @@
-Website available at: regman.app
+Website available at: https://regman.app/
