@@ -23,7 +23,7 @@ namespace RegMan.Backend.DAL.DataContext
 
             var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
             optionsBuilder.UseSqlServer(
-                configuration.GetConnectionString("NEW_CONNECTION_STRING")
+                configuration.GetConnectionString("DefaultConnection")
             );
 
             return new AppDbContext(optionsBuilder.Options);

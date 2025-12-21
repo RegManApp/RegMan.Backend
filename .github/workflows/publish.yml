@@ -5,7 +5,7 @@ jobs:
   build_and_deploy:
     runs-on: windows-latest
     env:
-      ConnectionStrings__NEW_CONNECTION_STRING: ${{ secrets.NEW_CONNECTION_STRING }}
+      ConnectionStrings__DefaultConnection: ${{ secrets.NEW_CONNECTION_STRING }}
     steps:
       - uses: actions/checkout@v4
 
@@ -23,6 +23,12 @@ jobs:
       - name: Publish
         run: cd RegMan.Backend.API && dotnet publish --configuration Release --output ./publish --runtime win-x86 --self-contained false
 
+      - name: Install EF Core tools
+        run: dotnet tool install --global dotnet-ef
+
+      - name: Apply Database Migrations
+        run: cd RegMan.Backend.API && dotnet ef database update --connection "${{ secrets.NEW_CONNECTION_STRING }}"
+
       - name: List published files
         run: Get-ChildItem -Recurse "RegMan.Backend.API/publish/" | Select-Object FullName
         shell: pwsh
@@ -30,7 +36,7 @@ jobs:
       - name: Update appsettings with connection string
         run: |
           $appSettings = Get-Content "RegMan.Backend.API/publish/appsettings.json" | ConvertFrom-Json
-          $appSettings.ConnectionStrings.NEW_CONNECTION_STRING = "${{ secrets.NEW_CONNECTION_STRING }}"
+          $appSettings.ConnectionStrings.DefaultConnection = "${{ secrets.NEW_CONNECTION_STRING }}"
           $appSettings | ConvertTo-Json -Depth 10 | Set-Content "RegMan.Backend.API/publish/appsettings.json"
         shell: pwsh
 

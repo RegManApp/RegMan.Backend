@@ -14,7 +14,7 @@ namespace RegMan.Backend.DAL
             service.AddScoped<IUnitOfWork, UnitOfWork>();
             //service.AddDbContext<AppDbContext>(options=> { options.UseSqlServer("Data Source=.;Initial Catalog=RegManDb;Integrated Security=True;Trust Server Certificate=True"); });
             service.AddDbContext<AppDbContext>(options =>
-            options.UseSqlServer(configuration.GetConnectionString("NEW_CONNECTION_STRING")));
+            options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
 
             return service;
         }
