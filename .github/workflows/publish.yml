@@ -6,6 +6,8 @@ jobs:
     runs-on: windows-latest
     env:
       ConnectionStrings__DefaultConnection: ${{ secrets.CONNECTION_STRING }}
+      ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
