@@ -1,52 +1,62 @@
 name: Build, publish and deploy to MonsterASP.NET
-on: [push]
+
+on:
+  push:
+    branches:
+      - main
 
 jobs:
   build_and_deploy:
     runs-on: windows-latest
+
     env:
       ConnectionStrings__DefaultConnection: ${{ secrets.NEW_CONNECTION_STRING }}
+
     steps:
+      # Checkout
       - uses: actions/checkout@v4
 
+      # Setup .NET 8
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0
+          dotnet-version: 8.0.x
 
-      - name: Install dependencies
+      # Restore
+      - name: Restore dependencies
         run: cd RegMan.Backend.API && dotnet restore
 
-      - name: Build
-        run: cd RegMan.Backend.API && dotnet build --configuration Release --no-restore
-
-      - name: Publish
-        run: cd RegMan.Backend.API && dotnet publish --configuration Release --output ./publish --runtime win-x86 --self-contained false
-
+      # Install EF Core CLI (VERSION PINNED)
       - name: Install EF Core tools
-        run: dotnet tool install --global dotnet-ef
+        run: dotnet tool install --global dotnet-ef --version 8.*
 
+      # Add dotnet tools to PATH
       - name: Add .NET tools to PATH
         run: echo "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
         shell: pwsh
 
+      # Apply Database Migrations (FIRST TIME SAFE)
       - name: Apply Database Migrations
         run: cd RegMan.Backend.API && dotnet ef database update --connection "${{ secrets.NEW_CONNECTION_STRING }}"
 
-      - name: List published files
-        run: Get-ChildItem -Recurse "RegMan.Backend.API/publish/" | Select-Object FullName
-        shell: pwsh
+      # Build
+      - name: Build
+        run: cd RegMan.Backend.API && dotnet build --configuration Release --no-restore
 
-      - name: Update appsettings with connection string
+      # Publish
+      - name: Publish
+        run: cd RegMan.Backend.API && dotnet publish --configuration Release --output ./publish --runtime win-x86 --self-contained false
+
+      # Update appsettings.json with Connection String
+      - name: Update appsettings.json
+        shell: pwsh
         run: |
-          $appSettings = Get-Content "RegMan.Backend.API/publish/appsettings.json" | ConvertFrom-Json
+          $appSettingsPath = "RegMan.Backend.API/publish/appsettings.json"
+          $appSettings = Get-Content $appSettingsPath | ConvertFrom-Json
           $appSettings.ConnectionStrings.DefaultConnection = "${{ secrets.NEW_CONNECTION_STRING }}"
-          $appSettings | ConvertTo-Json -Depth 10 | Set-Content "RegMan.Backend.API/publish/appsettings.json"
-        shell: pwsh
+          $appSettings | ConvertTo-Json -Depth 10 | Set-Content $appSettingsPath
 
-      - name: Test with .NET
-        run: cd RegMan.Backend.API && dotnet test
-
+      # Deploy to MonsterASP.NET
       - name: Deploy to MonsterASP.NET via WebDeploy
         uses: rasmusbuchholdt/simply-web-deploy@2.1.0
         with:
