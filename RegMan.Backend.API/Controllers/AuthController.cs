@@ -47,13 +47,13 @@ namespace RegMan.Backend.API.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterDTO dto)
         {
+            // Force role to Student for public registration - prevent role escalation
+            const string allowedRole = "Student";
 
-            // Use provided role or default to Student
-            var requestedRole = string.IsNullOrWhiteSpace(dto.Role) ? "Student" : dto.Role;
-            if (!await roleManager.RoleExistsAsync(requestedRole))
+            if (!await roleManager.RoleExistsAsync(allowedRole))
             {
                 return BadRequest(ApiResponse<string>.FailureResponse(
-                    $"Role '{requestedRole}' does not exist",
+                    "Role does not exist",
                     StatusCodes.Status400BadRequest
                 ));
             }
@@ -64,7 +64,7 @@ namespace RegMan.Backend.API.Controllers
                 Email = dto.Email,
                 FullName = dto.FullName,
                 Address = dto.Address,
-                Role = requestedRole
+                Role = allowedRole // Always Student for public registration
             };
 
             var result = await userManager.CreateAsync(user, dto.Password);
@@ -78,31 +78,29 @@ namespace RegMan.Backend.API.Controllers
                 ));
             }
 
-            await userManager.AddToRoleAsync(user, requestedRole);
+            await userManager.AddToRoleAsync(user, allowedRole);
 
-            // Only create StudentProfile and Cart if role is Student
-            if (requestedRole == "Student")
+            // Create StudentProfile and Cart for the new student
+            var defaultAcademicPlan = await unitOfWork.AcademicPlans.GetAllAsQueryable().FirstOrDefaultAsync();
+            var studentProfile = new StudentProfile
             {
-                var defaultAcademicPlan = await unitOfWork.AcademicPlans.GetAllAsQueryable().FirstOrDefaultAsync();
-                var studentProfile = new StudentProfile
-                {
-                    UserId = user.Id,
-                    FamilyContact = "",
-                    CompletedCredits = 0,
-                    RegisteredCredits = 0,
-                    GPA = 0.0,
-                    AcademicPlanId = defaultAcademicPlan?.AcademicPlanId ?? "default"
-                };
-                await unitOfWork.StudentProfiles.AddAsync(studentProfile);
-                await unitOfWork.SaveChangesAsync();
+                UserId = user.Id,
+                FamilyContact = "",
+                CompletedCredits = 0,
+                RegisteredCredits = 0,
+                GPA = 0.0,
+                AcademicPlanId = defaultAcademicPlan?.AcademicPlanId ?? "default"
+            };
+            await unitOfWork.StudentProfiles.AddAsync(studentProfile);
+            await unitOfWork.SaveChangesAsync();
 
-                var cart = new Cart
-                {
-                    StudentProfileId = studentProfile.StudentId
-                };
-                await unitOfWork.Carts.AddAsync(cart);
-                await unitOfWork.SaveChangesAsync();
-            }
+            // Create Cart for student
+            var cart = new Cart
+            {
+                StudentProfileId = studentProfile.StudentId
+            };
+            await unitOfWork.Carts.AddAsync(cart);
+            await unitOfWork.SaveChangesAsync();
 
             // ===== Audit Log =====
             await auditLogService.LogAsync(
