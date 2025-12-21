@@ -12,11 +12,30 @@ namespace RegMan.Backend.API.Controllers
     [Authorize]
     public class CalendarController : ControllerBase
     {
+        private static DateTime? registrationEndDate = null;
+        private static DateTime? withdrawStartDate = null;
+        private static DateTime? withdrawEndDate = null;
+
         private readonly AppDbContext _context;
 
         public CalendarController(AppDbContext context)
         {
             _context = context;
+        }
+
+        /// <summary>
+        /// Get registration and withdrawal dates
+        /// </summary>
+        [HttpGet("registration-withdraw-dates")]
+        [AllowAnonymous]
+        public IActionResult GetRegistrationWithdrawDates()
+        {
+            return Ok(new
+            {
+                registrationEndDate = registrationEndDate?.ToString("yyyy-MM-dd") ?? "",
+                withdrawStartDate = withdrawStartDate?.ToString("yyyy-MM-dd") ?? "",
+                withdrawEndDate = withdrawEndDate?.ToString("yyyy-MM-dd") ?? ""
+            });
         }
 
         /// <summary>

@@ -116,16 +116,7 @@ namespace RegMan.Backend.API.Controllers
         private static DateTime? withdrawStartDate = null;
         private static DateTime? withdrawEndDate = null;
 
-        [HttpGet("registration-end-date")]
-        public IActionResult GetRegistrationEndDate()
-        {
-            return Ok(ApiResponse<object>.SuccessResponse(new
-            {
-                registrationEndDate = registrationEndDate?.ToString("yyyy-MM-dd") ?? "",
-                withdrawStartDate = withdrawStartDate?.ToString("yyyy-MM-dd") ?? "",
-                withdrawEndDate = withdrawEndDate?.ToString("yyyy-MM-dd") ?? ""
-            }));
-        }
+        // Removed GET endpoint for registration/withdraw dates from admin-only controller
 
         [HttpPost("registration-end-date")]
         public IActionResult SetRegistrationEndDate([FromBody] RegistrationEndDateDTO dto)
