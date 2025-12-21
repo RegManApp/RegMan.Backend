@@ -26,8 +26,11 @@ jobs:
       - name: Install EF Core tools
         run: dotnet tool install --global dotnet-ef
 
-      - name: Apply Database Migrations
-        run: cd RegMan.Backend.API && dotnet ef database update --connection "${{ secrets.NEW_CONNECTION_STRING }}"
+        - name: Add .NET tools to PATH
+          run: echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+        - name: Apply Database Migrations
+          run: cd RegMan.Backend.API && dotnet ef database update --connection "${{ secrets.NEW_CONNECTION_STRING }}"
 
       - name: List published files
         run: Get-ChildItem -Recurse "RegMan.Backend.API/publish/" | Select-Object FullName
