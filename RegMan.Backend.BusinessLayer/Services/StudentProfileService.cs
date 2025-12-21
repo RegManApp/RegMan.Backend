@@ -10,10 +10,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using RegMan.Backend.BusinessLayer.Helpers;
 
 namespace RegMan.Backend.BusinessLayer.Services
 {
-    internal class StudentProfileService: IStudentProfileService
+    internal class StudentProfileService : IStudentProfileService
     {
         private readonly IUnitOfWork unitOfWork;
         private readonly IBaseRepository<Cart> cartRepository;
@@ -32,21 +33,22 @@ namespace RegMan.Backend.BusinessLayer.Services
             studentRepository = unitOfWork.StudentProfiles;
         }
         //Create Student Profile - for admin use only
-        public async Task<ViewStudentProfileDTO> CreateProfileAsync(CreateStudentDTO studentDTO) 
+        public async Task<ViewStudentProfileDTO> CreateProfileAsync(CreateStudentDTO studentDTO)
         {
             if (await userManager.FindByEmailAsync(studentDTO.Email) is not null)
                 throw new Exception($"A student with the email {studentDTO.Email} already exists!");
 
-            BaseUser baseUser = new BaseUser {
-                FullName=studentDTO.FullName,
+            BaseUser baseUser = new BaseUser
+            {
+                FullName = Sanitizer.Sanitize(studentDTO.FullName),
                 Email = studentDTO.Email,
                 UserName = studentDTO.Email
             };
             if (studentDTO.Address != null)
-                baseUser.Address = studentDTO.Address;
-    
+                baseUser.Address = Sanitizer.Sanitize(studentDTO.Address);
+
             var result = await userManager.CreateAsync(baseUser, studentDTO.Password);
-            if (!result.Succeeded) 
+            if (!result.Succeeded)
             {
                 var errors = string.Join(", ", result.Errors.Select(e => e.Description));
                 throw new Exception(errors);
@@ -55,16 +57,17 @@ namespace RegMan.Backend.BusinessLayer.Services
             Cart cart = new Cart { };
             await cartRepository.AddAsync(cart);
 
-            bool validAcademicPlan = await academicPlanRepository.GetAllAsQueryable().AsNoTracking().AnyAsync(p=>p.AcademicPlanId==studentDTO.AcademicPlanId);
+            bool validAcademicPlan = await academicPlanRepository.GetAllAsQueryable().AsNoTracking().AnyAsync(p => p.AcademicPlanId == studentDTO.AcademicPlanId);
 
-            StudentProfile student = new StudentProfile { 
-                FamilyContact=studentDTO.FamilyContact,
-                CompletedCredits=0,
-                RegisteredCredits=0,
-                GPA=0.0,
-                UserId =baseUser.Id,
-                AcademicPlanId=studentDTO.AcademicPlanId,
-                CartId=cart.CartId
+            StudentProfile student = new StudentProfile
+            {
+                FamilyContact = Sanitizer.Sanitize(studentDTO.FamilyContact),
+                CompletedCredits = 0,
+                RegisteredCredits = 0,
+                GPA = 0.0,
+                UserId = baseUser.Id,
+                AcademicPlanId = studentDTO.AcademicPlanId,
+                CartId = cart.CartId
             };
             await studentRepository.AddAsync(student);
             await unitOfWork.SaveChangesAsync();
@@ -78,25 +81,25 @@ namespace RegMan.Backend.BusinessLayer.Services
                 RegisteredCredits = student.RegisteredCredits,
                 GPA = student.GPA,
                 AcademicPlanId = student.AcademicPlanId,
-                RemainingCredits = await academicPlanRepository.GetAllAsQueryable().AsNoTracking().Where(ap => ap.AcademicPlanId == student.AcademicPlanId).Select(ap => ap.TotalCreditsRequired).FirstOrDefaultAsync()- (student.CompletedCredits + student.RegisteredCredits)
+                RemainingCredits = await academicPlanRepository.GetAllAsQueryable().AsNoTracking().Where(ap => ap.AcademicPlanId == student.AcademicPlanId).Select(ap => ap.TotalCreditsRequired).FirstOrDefaultAsync() - (student.CompletedCredits + student.RegisteredCredits)
             };
             return viewStudent;
         }
         //READ 
-        public async Task<ViewStudentProfileDTO> GetProfileByIdAsync(int id) 
+        public async Task<ViewStudentProfileDTO> GetProfileByIdAsync(int id)
         {
             ViewStudentProfileDTO? student = await studentRepository.GetAllAsQueryable().AsNoTracking()
                 .Where(s => s.StudentId == id)
                 .Select(st => new ViewStudentProfileDTO
                 {
-                    StudentId=st.StudentId,
-                    FullName=st.User.FullName,
-                    Address=st.User.Address,
+                    StudentId = st.StudentId,
+                    FullName = st.User.FullName,
+                    Address = st.User.Address,
                     FamilyContact = st.FamilyContact,
                     CompletedCredits = st.CompletedCredits,
                     RegisteredCredits = st.RegisteredCredits,
-                    GPA=st.GPA,
-                    RemainingCredits=st.AcademicPlan.TotalCreditsRequired-(st.CompletedCredits+st.RegisteredCredits)
+                    GPA = st.GPA,
+                    RemainingCredits = st.AcademicPlan.TotalCreditsRequired - (st.CompletedCredits + st.RegisteredCredits)
                 })
                 .FirstOrDefaultAsync();
             if (student is null)
@@ -104,20 +107,20 @@ namespace RegMan.Backend.BusinessLayer.Services
             return student;
         }
         //get by UserId
-        public async Task<ViewStudentProfileDTO> GetProfileByIdAsync(string id) 
+        public async Task<ViewStudentProfileDTO> GetProfileByIdAsync(string id)
         {
             ViewStudentProfileDTO? student = await studentRepository.GetAllAsQueryable().AsNoTracking()
                 .Where(s => s.User.Id == id)
                 .Select(st => new ViewStudentProfileDTO
                 {
-                    StudentId=st.StudentId,
-                    FullName=st.User.FullName,
-                    Address=st.User.Address,
+                    StudentId = st.StudentId,
+                    FullName = st.User.FullName,
+                    Address = st.User.Address,
                     FamilyContact = st.FamilyContact,
                     CompletedCredits = st.CompletedCredits,
                     RegisteredCredits = st.RegisteredCredits,
-                    GPA=st.GPA,
-                    RemainingCredits=st.AcademicPlan.TotalCreditsRequired-(st.CompletedCredits+st.RegisteredCredits)
+                    GPA = st.GPA,
+                    RemainingCredits = st.AcademicPlan.TotalCreditsRequired - (st.CompletedCredits + st.RegisteredCredits)
                 })
                 .FirstOrDefaultAsync();
             if (student is null)
@@ -125,7 +128,7 @@ namespace RegMan.Backend.BusinessLayer.Services
             return student;
         }
         //READ ALL AND FILTER 
-        public async Task<List<ViewStudentProfileDTO>> GetAllStudentsAsync(int? GPA, int? CompletedCredits, string? AcademicPlanId) 
+        public async Task<List<ViewStudentProfileDTO>> GetAllStudentsAsync(int? GPA, int? CompletedCredits, string? AcademicPlanId)
         {
             var query = studentRepository.GetAllAsQueryable().AsNoTracking();
             if (GPA.HasValue)
@@ -154,7 +157,7 @@ namespace RegMan.Backend.BusinessLayer.Services
                     RemainingCredits = st.AcademicPlan.TotalCreditsRequired - (st.CompletedCredits + st.RegisteredCredits)
                 })
                 .ToListAsync();
-            if(students is null)
+            if (students is null)
                 throw new KeyNotFoundException("No students found with the specified criteria.");
             return students;
         }
@@ -168,11 +171,11 @@ namespace RegMan.Backend.BusinessLayer.Services
             if (student is null)
                 throw new KeyNotFoundException($"Student with ID {studentDTO.StudentId} does not exist.");
 
-            student.User.FullName = studentDTO.FullName;
-            student.User.Address = studentDTO.Address;
+            student.User.FullName = Sanitizer.Sanitize(studentDTO.FullName);
+            student.User.Address = Sanitizer.Sanitize(studentDTO.Address);
             student.RegisteredCredits = studentDTO.RegisteredCredits;
             student.GPA = studentDTO.GPA;
-            student.FamilyContact = studentDTO.FamilyContact;
+            student.FamilyContact = Sanitizer.Sanitize(studentDTO.FamilyContact);
 
             studentRepository.Update(student);
             await unitOfWork.SaveChangesAsync();
@@ -191,18 +194,18 @@ namespace RegMan.Backend.BusinessLayer.Services
             };
         }
         //Change password
-        public async Task ChangeStudentPassword(ChangePasswordDTO passwordDTO) 
+        public async Task ChangeStudentPassword(ChangePasswordDTO passwordDTO)
         {
             if (passwordDTO.NewPassword != passwordDTO.ConfirmPassword)
                 throw new Exception("New password does not match.");
             BaseUser? user = await userManager.FindByEmailAsync(passwordDTO.Email);
-            if(user is null)
+            if (user is null)
                 throw new Exception($"A student with the email {passwordDTO.Email} does not exist!");
-            bool validPassword = await userManager.CheckPasswordAsync(user,passwordDTO.OldPassword);
-            if(!validPassword)
+            bool validPassword = await userManager.CheckPasswordAsync(user, passwordDTO.OldPassword);
+            if (!validPassword)
                 throw new Exception($"Invalid credentials.");
             //no errors anymore
-            user.PasswordHash= passwordDTO.NewPassword;
+            user.PasswordHash = passwordDTO.NewPassword;
 
         }
 
