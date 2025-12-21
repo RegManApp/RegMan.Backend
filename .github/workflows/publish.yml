@@ -18,6 +18,16 @@ jobs:
       - name: Install dependencies
         run: cd RegMan.Backend.API && dotnet restore
 
+      - name: Install EF Core tools
+        run: dotnet tool install --global dotnet-ef --version 8.*
+
+      - name: Add .NET tools to PATH
+        shell: pwsh
+        run: echo "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Apply Database Migrations
+        run: cd RegMan.Backend.API && dotnet ef database update --connection "${{ secrets.CONNECTION_STRING }}"
+
       - name: Build
         run: cd RegMan.Backend.API && dotnet build --configuration Release --no-restore
 
