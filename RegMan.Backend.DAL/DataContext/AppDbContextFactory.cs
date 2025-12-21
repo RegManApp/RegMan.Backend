@@ -5,7 +5,7 @@ using System.IO;
 
 namespace RegMan.Backend.DAL.DataContext
 {
-    public class AppDbContextFactory 
+    public class AppDbContextFactory
         : IDesignTimeDbContextFactory<AppDbContext>
     {
         public AppDbContext CreateDbContext(string[] args)
@@ -23,7 +23,7 @@ namespace RegMan.Backend.DAL.DataContext
 
             var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
             optionsBuilder.UseSqlServer(
-                configuration.GetConnectionString("DefaultConnection")
+                configuration.GetConnectionString("NEW_CONNECTION_STRING")
             );
 
             return new AppDbContext(optionsBuilder.Options);

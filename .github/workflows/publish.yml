@@ -5,7 +5,7 @@ jobs:
   build_and_deploy:
     runs-on: windows-latest
     env:
-      ConnectionStrings__DefaultConnection: ${{ secrets.CONNECTION_STRING }}
+      ConnectionStrings__NEW_CONNECTION_STRING: ${{ secrets.NEW_CONNECTION_STRING }}
     steps:
       - uses: actions/checkout@v4
 
@@ -30,7 +30,7 @@ jobs:
       - name: Update appsettings with connection string
         run: |
           $appSettings = Get-Content "RegMan.Backend.API/publish/appsettings.json" | ConvertFrom-Json
-          $appSettings.ConnectionStrings.DefaultConnection = "${{ secrets.CONNECTION_STRING }}"
+          $appSettings.ConnectionStrings.NEW_CONNECTION_STRING = "${{ secrets.NEW_CONNECTION_STRING }}"
           $appSettings | ConvertTo-Json -Depth 10 | Set-Content "RegMan.Backend.API/publish/appsettings.json"
         shell: pwsh
 
@@ -44,4 +44,4 @@ jobs:
           server-computer-name: ${{ secrets.SERVER_COMPUTER_NAME }}
           server-username: ${{ secrets.SERVER_USERNAME }}
           server-password: ${{ secrets.SERVER_PASSWORD }}
-          source-path: 'RegMan.Backend.API/publish/'
+          source-path: "RegMan.Backend.API/publish/"

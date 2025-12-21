@@ -8,13 +8,13 @@ using System.Linq.Expressions;
 namespace RegMan.Backend.DAL
 {
     public static class DataAccessExtension
-    {     
-        public static IServiceCollection AddDataBaseLayer( this IServiceCollection service, IConfiguration configuration) 
+    {
+        public static IServiceCollection AddDataBaseLayer(this IServiceCollection service, IConfiguration configuration)
         {
             service.AddScoped<IUnitOfWork, UnitOfWork>();
-            //service.AddDbContext<AppDbContext>(options=> { options.UseSqlServer("Data Source=.;Initial Catalog=StudentManagementDb;Integrated Security=True;Trust Server Certificate=True"); });
+            //service.AddDbContext<AppDbContext>(options=> { options.UseSqlServer("Data Source=.;Initial Catalog=RegManDb;Integrated Security=True;Trust Server Certificate=True"); });
             service.AddDbContext<AppDbContext>(options =>
-            options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+            options.UseSqlServer(configuration.GetConnectionString("NEW_CONNECTION_STRING")));
 
             return service;
         }
