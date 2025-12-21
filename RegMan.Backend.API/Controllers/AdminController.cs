@@ -15,7 +15,7 @@ using RegMan.Backend.DAL.Contracts;
 
 namespace RegMan.Backend.API.Controllers
 {
-    // [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin")]
     [ApiController]
     [Route("api/admin")]
     public class AdminController : ControllerBase
