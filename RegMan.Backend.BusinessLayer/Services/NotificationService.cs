@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using RegMan.Backend.BusinessLayer.Contracts;
+using RegMan.Backend.BusinessLayer.DTOs.Notifications;
 using RegMan.Backend.DAL.Contracts;
 using RegMan.Backend.DAL.DataContext;
 using RegMan.Backend.DAL.Entities;
@@ -19,10 +21,12 @@ namespace RegMan.Backend.BusinessLayer.Services
     public class NotificationService : INotificationService
     {
         private readonly AppDbContext _context;
+        private readonly INotificationRealtimePublisher _realtimePublisher;
 
-        public NotificationService(AppDbContext context)
+        public NotificationService(AppDbContext context, INotificationRealtimePublisher realtimePublisher)
         {
             _context = context;
+            _realtimePublisher = realtimePublisher;
         }
 
         public async Task CreateNotificationAsync(string userId, NotificationType type, string title, string message, string? entityType = null, int? entityId = null)
@@ -41,6 +45,18 @@ namespace RegMan.Backend.BusinessLayer.Services
 
             _context.Notifications.Add(notification);
             await _context.SaveChangesAsync();
+
+            await _realtimePublisher.PublishAsync(userId, new RealtimeNotificationDTO
+            {
+                NotificationId = notification.NotificationId,
+                Type = notification.Type,
+                Title = notification.Title,
+                Message = notification.Message,
+                EntityType = notification.EntityType,
+                EntityId = notification.EntityId,
+                IsRead = notification.IsRead,
+                CreatedAt = notification.CreatedAt
+            });
         }
 
         public async Task CreateOfficeHourBookedNotificationAsync(int bookingId, string instructorUserId, string studentName, DateTime date, TimeSpan startTime)

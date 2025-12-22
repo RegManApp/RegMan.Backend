@@ -12,9 +12,28 @@ namespace RegMan.Backend.BusinessLayer.DTOs.AcademicPlanDTOs
         public double ProgressPercentage { get; set; }
         public double CurrentGPA { get; set; }
         public int ExpectedGraduationYear { get; set; }
+
+        // Course completion summary
+        public int RequiredCoursesCount { get; set; }
+        public int RequiredCoursesCompletedCount { get; set; }
+        public int TotalPlanCoursesCount { get; set; }
+        public int PlanCoursesCompletedCount { get; set; }
+
+        // Warnings are computed using plan ordering as a proxy for prerequisites.
+        // (There is no explicit prerequisites table in this codebase.)
+        public IEnumerable<PrerequisiteWarningDTO> MissingPrerequisiteWarnings { get; set; } = new List<PrerequisiteWarningDTO>();
+
         public IEnumerable<CourseProgressDTO> CompletedCourses { get; set; } = new List<CourseProgressDTO>();
         public IEnumerable<CourseProgressDTO> InProgressCourses { get; set; } = new List<CourseProgressDTO>();
         public IEnumerable<CourseProgressDTO> RemainingCourses { get; set; } = new List<CourseProgressDTO>();
+    }
+
+    public class PrerequisiteWarningDTO
+    {
+        public int CourseId { get; set; }
+        public string CourseCode { get; set; } = string.Empty;
+        public string CourseName { get; set; } = string.Empty;
+        public IEnumerable<string> MissingCourseCodes { get; set; } = new List<string>();
     }
 
     public class CourseProgressDTO

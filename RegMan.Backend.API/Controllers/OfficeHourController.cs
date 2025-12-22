@@ -343,16 +343,13 @@ namespace RegMan.Backend.API.Controllers
 
                 if (student != null)
                 {
-                    var notification = new Notification
-                    {
-                        UserId = student.UserId,
-                        Type = NotificationType.OfficeHourCancelled,
-                        Title = "Office Hour Cancelled",
-                        Message = $"Your office hour booking on {officeHour.Date:MMM dd, yyyy} at {officeHour.StartTime:hh\\:mm} has been cancelled by the instructor.",
-                        EntityType = "OfficeHourBooking",
-                        EntityId = booking.BookingId
-                    };
-                    _context.Notifications.Add(notification);
+                    await _notificationService.CreateOfficeHourCancelledNotificationAsync(
+                        userId: student.UserId,
+                        cancelledBy: "Instructor",
+                        date: officeHour.Date,
+                        startTime: officeHour.StartTime,
+                        reason: booking.CancellationReason
+                    );
                 }
             }
 
@@ -380,6 +377,8 @@ namespace RegMan.Backend.API.Controllers
 
             var booking = await _context.OfficeHourBookings
                 .Include(b => b.OfficeHour)
+                    .ThenInclude(oh => oh.Instructor)
+                        .ThenInclude(i => i.User)
                 .Include(b => b.Student)
                     .ThenInclude(s => s.User)
                 .FirstOrDefaultAsync(b => b.BookingId == bookingId && b.OfficeHour.InstructorId == instructor.InstructorId);
@@ -399,20 +398,14 @@ namespace RegMan.Backend.API.Controllers
 
             // Update office hour status
             booking.OfficeHour.Status = OfficeHourStatus.Booked;
-
-            // Notify student
-            var notification = new Notification
-            {
-                UserId = booking.Student.UserId,
-                Type = NotificationType.OfficeHourConfirmed,
-                Title = "Office Hour Booking Confirmed",
-                Message = $"Your office hour booking on {booking.OfficeHour.Date:MMM dd, yyyy} at {booking.OfficeHour.StartTime:hh\\:mm} has been confirmed.",
-                EntityType = "OfficeHourBooking",
-                EntityId = booking.BookingId
-            };
-            _context.Notifications.Add(notification);
-
             await _context.SaveChangesAsync();
+
+            await _notificationService.CreateOfficeHourConfirmedNotificationAsync(
+                studentUserId: booking.Student.UserId,
+                instructorName: booking.OfficeHour.Instructor.User.FullName,
+                date: booking.OfficeHour.Date,
+                startTime: booking.OfficeHour.StartTime
+            );
 
             return Ok(ApiResponse<string>.SuccessResponse("Booking confirmed successfully"));
         }
@@ -664,24 +657,15 @@ namespace RegMan.Backend.API.Controllers
 
             // Update office hour status
             officeHour.Status = OfficeHourStatus.Booked;
-
-            // Create notification for instructor
-            var notification = new Notification
-            {
-                UserId = officeHour.Instructor.UserId,
-                Type = NotificationType.OfficeHourBooked,
-                Title = "New Office Hour Booking",
-                Message = $"{student.User.FullName} has booked your office hour on {officeHour.Date:MMM dd, yyyy} at {officeHour.StartTime:hh\\:mm}.",
-                EntityType = "OfficeHourBooking",
-                EntityId = booking.BookingId
-            };
-            _context.Notifications.Add(notification);
-
             await _context.SaveChangesAsync();
 
-            // Update notification with correct booking ID
-            notification.EntityId = booking.BookingId;
-            await _context.SaveChangesAsync();
+            await _notificationService.CreateOfficeHourBookedNotificationAsync(
+                bookingId: booking.BookingId,
+                instructorUserId: officeHour.Instructor.UserId,
+                studentName: student.User.FullName,
+                date: officeHour.Date,
+                startTime: officeHour.StartTime
+            );
 
             return Ok(ApiResponse<object>.SuccessResponse(
                 new { bookingId = booking.BookingId },
@@ -809,30 +793,28 @@ namespace RegMan.Backend.API.Controllers
 
             // Make office hour available again
             booking.OfficeHour.Status = OfficeHourStatus.Available;
-
-            // Notify the other party
-            var notification = new Notification
-            {
-                Type = NotificationType.OfficeHourCancelled,
-                Title = "Office Hour Booking Cancelled",
-                Message = $"The office hour booking on {booking.OfficeHour.Date:MMM dd, yyyy} at {booking.OfficeHour.StartTime:hh\\:mm} has been cancelled.",
-                EntityType = "OfficeHourBooking",
-                EntityId = booking.BookingId
-            };
+            await _context.SaveChangesAsync();
 
             if (userRole == "Student")
             {
-                notification.UserId = booking.OfficeHour.Instructor.UserId;
-                notification.Message = $"{booking.Student.User.FullName} has cancelled their office hour booking on {booking.OfficeHour.Date:MMM dd, yyyy} at {booking.OfficeHour.StartTime:hh\\:mm}.";
+                await _notificationService.CreateOfficeHourCancelledNotificationAsync(
+                    userId: booking.OfficeHour.Instructor.UserId,
+                    cancelledBy: booking.Student.User.FullName,
+                    date: booking.OfficeHour.Date,
+                    startTime: booking.OfficeHour.StartTime,
+                    reason: dto.Reason
+                );
             }
             else
             {
-                notification.UserId = booking.Student.UserId;
-                notification.Message = $"Your office hour booking with {booking.OfficeHour.Instructor.User.FullName} on {booking.OfficeHour.Date:MMM dd, yyyy} at {booking.OfficeHour.StartTime:hh\\:mm} has been cancelled by the instructor.";
+                await _notificationService.CreateOfficeHourCancelledNotificationAsync(
+                    userId: booking.Student.UserId,
+                    cancelledBy: "Instructor",
+                    date: booking.OfficeHour.Date,
+                    startTime: booking.OfficeHour.StartTime,
+                    reason: dto.Reason
+                );
             }
-
-            _context.Notifications.Add(notification);
-            await _context.SaveChangesAsync();
 
             return Ok(ApiResponse<string>.SuccessResponse("Booking cancelled successfully"));
         }

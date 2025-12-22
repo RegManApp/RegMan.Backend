@@ -434,6 +434,53 @@ namespace RegMan.Backend.BusinessLayer.Services
             int totalRequired = student.AcademicPlan?.TotalCreditsRequired ?? 0;
             int creditsRemaining = Math.Max(0, totalRequired - creditsCompleted);
 
+            // Course counts
+            var requiredPlanCourseIds = planCourses.Where(pc => pc.IsRequired).Select(pc => pc.CourseId).ToHashSet();
+            var requiredCoursesCount = requiredPlanCourseIds.Count;
+            var requiredCoursesCompletedCount = requiredPlanCourseIds.Count(id => completedCourseIds.Contains(id));
+            var totalPlanCoursesCount = planCourses.Count;
+            var planCoursesCompletedCount = planCourses.Count(pc => completedCourseIds.Contains(pc.CourseId));
+
+            // Missing prerequisites warnings (plan ordering proxy)
+            // If a student is taking a later (recommended) course while earlier required plan courses are not yet completed,
+            // we warn that prerequisites may be missing.
+            var planCourseByCourseId = planCourses
+                .GroupBy(pc => pc.CourseId)
+                .Select(g => g.First())
+                .ToDictionary(pc => pc.CourseId, pc => pc);
+
+            var warnings = new List<PrerequisiteWarningDTO>();
+            foreach (var courseId in inProgressCourseIds)
+            {
+                if (!planCourseByCourseId.TryGetValue(courseId, out var currentPlanCourse))
+                    continue;
+
+                var courseYear = currentPlanCourse.RecommendedYear;
+                var courseSemester = currentPlanCourse.RecommendedSemester;
+
+                var missing = planCourses
+                    .Where(pc => pc.IsRequired)
+                    .Where(pc =>
+                        pc.RecommendedYear < courseYear ||
+                        (pc.RecommendedYear == courseYear && pc.RecommendedSemester < courseSemester))
+                    .Where(pc => !completedCourseIds.Contains(pc.CourseId))
+                    .Select(pc => pc.Course.CourseCode)
+                    .Distinct()
+                    .OrderBy(code => code)
+                    .ToList();
+
+                if (missing.Count > 0)
+                {
+                    warnings.Add(new PrerequisiteWarningDTO
+                    {
+                        CourseId = courseId,
+                        CourseCode = currentPlanCourse.Course.CourseCode,
+                        CourseName = currentPlanCourse.Course.CourseName,
+                        MissingCourseCodes = missing
+                    });
+                }
+            }
+
             // Estimate graduation year
             int currentYear = DateTime.Now.Year;
             int expectedYears = student.AcademicPlan?.ExpectedYearsToComplete ?? 4;
@@ -451,6 +498,11 @@ namespace RegMan.Backend.BusinessLayer.Services
                 ProgressPercentage = totalRequired > 0 ? Math.Round((double)creditsCompleted / totalRequired * 100, 2) : 0,
                 CurrentGPA = student.GPA,
                 ExpectedGraduationYear = expectedGraduationYear,
+                RequiredCoursesCount = requiredCoursesCount,
+                RequiredCoursesCompletedCount = requiredCoursesCompletedCount,
+                TotalPlanCoursesCount = totalPlanCoursesCount,
+                PlanCoursesCompletedCount = planCoursesCompletedCount,
+                MissingPrerequisiteWarnings = warnings,
                 CompletedCourses = completedCourses.OrderBy(c => c.RecommendedYear).ThenBy(c => c.RecommendedSemester),
                 InProgressCourses = inProgressCourses.OrderBy(c => c.RecommendedYear).ThenBy(c => c.RecommendedSemester),
                 RemainingCourses = remainingCourses.OrderBy(c => c.RecommendedYear).ThenBy(c => c.RecommendedSemester)

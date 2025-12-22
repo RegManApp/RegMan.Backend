@@ -197,6 +197,28 @@ namespace RegMan.Backend.API.Controllers
             if (enrollment.Status != Status.Enrolled && enrollment.Status != Status.Pending)
                 return BadRequest(ApiResponse<string>.FailureResponse("Can only drop active or pending enrollments", 400));
 
+            // Timeline gate: allow drop during registration window OR withdraw period
+            var settings = await unitOfWork.AcademicCalendarSettings.GetAllAsQueryable()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.SettingsKey == "default");
+
+            var today = DateTime.UtcNow.Date;
+            var regStart = settings?.RegistrationStartDateUtc?.Date;
+            var regEnd = settings?.RegistrationEndDateUtc?.Date;
+            var withdrawStart = settings?.WithdrawStartDateUtc?.Date;
+            var withdrawEnd = settings?.WithdrawEndDateUtc?.Date;
+
+            var inRegistrationWindow = regStart.HasValue && regEnd.HasValue && today >= regStart.Value && today <= regEnd.Value;
+            var inWithdrawWindow = withdrawStart.HasValue && withdrawEnd.HasValue && today >= withdrawStart.Value && today <= withdrawEnd.Value;
+
+            if (!inRegistrationWindow && !inWithdrawWindow)
+            {
+                var msg = "Dropping/withdrawing is not allowed right now. " +
+                          $"Registration window: {(regStart.HasValue ? regStart.Value.ToString("yyyy-MM-dd") : "N/A")} to {(regEnd.HasValue ? regEnd.Value.ToString("yyyy-MM-dd") : "N/A")} (UTC). " +
+                          $"Withdraw window: {(withdrawStart.HasValue ? withdrawStart.Value.ToString("yyyy-MM-dd") : "N/A")} to {(withdrawEnd.HasValue ? withdrawEnd.Value.ToString("yyyy-MM-dd") : "N/A")} (UTC).";
+                return BadRequest(ApiResponse<string>.FailureResponse(msg, StatusCodes.Status400BadRequest));
+            }
+
             enrollment.Status = Status.Dropped;
 
             // Return seat to section

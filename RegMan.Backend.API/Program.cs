@@ -7,7 +7,9 @@ using RegMan.Backend.API.Common;
 using RegMan.Backend.API.Hubs;
 using RegMan.Backend.API.Middleware;
 using RegMan.Backend.API.Seeders;
+using RegMan.Backend.API.Services;
 using RegMan.Backend.BusinessLayer;
+using RegMan.Backend.BusinessLayer.Contracts;
 using RegMan.Backend.BusinessLayer.Services;
 using RegMan.Backend.DAL;
 using RegMan.Backend.DAL.DataContext;
@@ -55,6 +57,9 @@ namespace RegMan.Backend.API
 
             //Add Websocket SignalR 
             builder.Services.AddSignalR();
+
+            // Realtime notifications publisher (BusinessLayer depends on interface only)
+            builder.Services.AddScoped<INotificationRealtimePublisher, SignalRNotificationRealtimePublisher>();
             // =========================
             // Database + Business Layer
             // =========================
@@ -131,7 +136,7 @@ namespace RegMan.Backend.API
                         var path = context.HttpContext.Request.Path;
 
                         if (!string.IsNullOrEmpty(accessToken) &&
-                            path.StartsWithSegments("/hubs/chat"))
+                            (path.StartsWithSegments("/hubs/chat") || path.StartsWithSegments("/hubs/notifications")))
                         {
                             context.Token = accessToken;
                         }
@@ -259,6 +264,7 @@ namespace RegMan.Backend.API
             app.UseAuthorization();
 
             app.MapHub<ChatHub>("/hubs/chat");
+            app.MapHub<NotificationHub>("/hubs/notifications");
             app.MapControllers();
 
             app.Run();

@@ -5,6 +5,8 @@ using RegMan.Backend.API.Common;
 using RegMan.Backend.BusinessLayer.Contracts;
 using RegMan.Backend.BusinessLayer.DTOs.CartDTOs;
 using RegMan.Backend.BusinessLayer.DTOs.CourseDTOs;
+using RegMan.Backend.DAL.Contracts;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace RegMan.Backend.API.Controllers
@@ -16,10 +18,35 @@ namespace RegMan.Backend.API.Controllers
     {
         private readonly ICartService cartService;
         private readonly IEnrollmentService enrollmentService;
-        public CartController(ICartService cartService, IEnrollmentService enrollmentService)
+        private readonly IUnitOfWork unitOfWork;
+
+        public CartController(ICartService cartService, IEnrollmentService enrollmentService, IUnitOfWork unitOfWork)
         {
             this.cartService = cartService;
             this.enrollmentService = enrollmentService;
+            this.unitOfWork = unitOfWork;
+        }
+
+        private async Task<(bool ok, string message)> EnsureRegistrationOpenAsync()
+        {
+            var settings = await unitOfWork.AcademicCalendarSettings.GetAllAsQueryable()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.SettingsKey == "default");
+
+            if (settings?.RegistrationStartDateUtc == null || settings.RegistrationEndDateUtc == null)
+                return (false, "Registration timeline is not configured yet.");
+
+            var today = DateTime.UtcNow.Date;
+            var start = settings.RegistrationStartDateUtc.Value.Date;
+            var end = settings.RegistrationEndDateUtc.Value.Date;
+
+            if (today < start)
+                return (false, $"Registration is not open yet. Opens on {start:yyyy-MM-dd} (UTC).");
+
+            if (today > end)
+                return (false, $"Registration is closed. Closed on {end:yyyy-MM-dd} (UTC).");
+
+            return (true, "");
         }
         private string GetStudentID()
         {
@@ -33,6 +60,11 @@ namespace RegMan.Backend.API.Controllers
         public async Task<IActionResult> AddToCartAsync([FromQuery] int scheduleSlotId)
         {
             string userId = GetStudentID();
+
+            var gate = await EnsureRegistrationOpenAsync();
+            if (!gate.ok)
+                return BadRequest(ApiResponse<string>.FailureResponse(gate.message, StatusCodes.Status400BadRequest));
+
             await cartService.AddToCartAsync(userId, scheduleSlotId);
             return Ok(ApiResponse<string>
                     .SuccessResponse("Added to cart successfully"));
@@ -43,6 +75,11 @@ namespace RegMan.Backend.API.Controllers
         public async Task<IActionResult> AddToCartByCourseAsync(int courseId)
         {
             string userId = GetStudentID();
+
+            var gate = await EnsureRegistrationOpenAsync();
+            if (!gate.ok)
+                return BadRequest(ApiResponse<string>.FailureResponse(gate.message, StatusCodes.Status400BadRequest));
+
             await cartService.AddToCartByCourseAsync(userId, courseId);
             return Ok(ApiResponse<string>
                     .SuccessResponse("Course added to cart successfully"));
@@ -68,6 +105,10 @@ namespace RegMan.Backend.API.Controllers
         {
             string userId = GetStudentID();
 
+            var gate = await EnsureRegistrationOpenAsync();
+            if (!gate.ok)
+                return BadRequest(ApiResponse<string>.FailureResponse(gate.message, StatusCodes.Status400BadRequest));
+
             await enrollmentService.EnrollFromCartAsync(userId);
 
             return Ok(ApiResponse<string>.SuccessResponse(
@@ -80,6 +121,10 @@ namespace RegMan.Backend.API.Controllers
         public async Task<IActionResult> Checkout()
         {
             string userId = GetStudentID();
+
+            var gate = await EnsureRegistrationOpenAsync();
+            if (!gate.ok)
+                return BadRequest(ApiResponse<string>.FailureResponse(gate.message, StatusCodes.Status400BadRequest));
 
             await enrollmentService.EnrollFromCartAsync(userId);
 

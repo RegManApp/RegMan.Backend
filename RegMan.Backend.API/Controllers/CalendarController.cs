@@ -20,6 +20,56 @@ namespace RegMan.Backend.API.Controllers
             _context = context;
         }
 
+        private static string FormatDate(DateTime? utcDate)
+        {
+            return utcDate?.ToString("yyyy-MM-dd") ?? "";
+        }
+
+        private static object ComputeTimelineStatus(AcademicCalendarSettings? settings, DateTime nowUtc)
+        {
+            var todayUtc = nowUtc.Date;
+            var regStart = settings?.RegistrationStartDateUtc?.Date;
+            var regEnd = settings?.RegistrationEndDateUtc?.Date;
+            var withdrawStart = settings?.WithdrawStartDateUtc?.Date;
+            var withdrawEnd = settings?.WithdrawEndDateUtc?.Date;
+
+            string phase;
+            DateTime? countdownTargetUtc = null;
+
+            if (regStart.HasValue && todayUtc < regStart.Value)
+            {
+                phase = "Closed";
+                countdownTargetUtc = regStart.Value;
+            }
+            else if (regStart.HasValue && regEnd.HasValue && todayUtc >= regStart.Value && todayUtc <= regEnd.Value)
+            {
+                phase = "Open";
+                countdownTargetUtc = regEnd.Value.AddDays(1); // end-of-day inclusive UX
+            }
+            else if (regEnd.HasValue && withdrawStart.HasValue && todayUtc > regEnd.Value && todayUtc < withdrawStart.Value)
+            {
+                phase = "Closed";
+                countdownTargetUtc = withdrawStart.Value;
+            }
+            else if (withdrawStart.HasValue && withdrawEnd.HasValue && todayUtc >= withdrawStart.Value && todayUtc <= withdrawEnd.Value)
+            {
+                phase = "Withdraw period";
+                countdownTargetUtc = withdrawEnd.Value.AddDays(1); // end-of-day inclusive UX
+            }
+            else
+            {
+                phase = "Closed";
+                countdownTargetUtc = null;
+            }
+
+            return new
+            {
+                phase,
+                nowUtc,
+                countdownTargetUtc,
+            };
+        }
+
         /// <summary>
         /// Get registration and withdrawal dates
         /// </summary>
@@ -31,11 +81,41 @@ namespace RegMan.Backend.API.Controllers
                 .AsNoTracking()
                 .FirstOrDefaultAsync(s => s.SettingsKey == "default");
 
+            var status = ComputeTimelineStatus(settings, DateTime.UtcNow);
+
             var payload = new
             {
-                registrationEndDate = settings?.RegistrationEndDateUtc?.ToString("yyyy-MM-dd") ?? "",
-                withdrawStartDate = settings?.WithdrawStartDateUtc?.ToString("yyyy-MM-dd") ?? "",
-                withdrawEndDate = settings?.WithdrawEndDateUtc?.ToString("yyyy-MM-dd") ?? ""
+                registrationStartDate = FormatDate(settings?.RegistrationStartDateUtc),
+                registrationEndDate = FormatDate(settings?.RegistrationEndDateUtc),
+                withdrawStartDate = FormatDate(settings?.WithdrawStartDateUtc),
+                withdrawEndDate = FormatDate(settings?.WithdrawEndDateUtc),
+                status
+            };
+
+            return Ok(ApiResponse<object>.SuccessResponse(payload));
+        }
+
+        /// <summary>
+        /// Public timeline endpoint (student/instructor read-only)
+        /// </summary>
+        [HttpGet("timeline")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetTimeline()
+        {
+            var settings = await _context.AcademicCalendarSettings
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.SettingsKey == "default");
+
+            var nowUtc = DateTime.UtcNow;
+            var status = ComputeTimelineStatus(settings, nowUtc);
+
+            var payload = new
+            {
+                registrationStartDate = FormatDate(settings?.RegistrationStartDateUtc),
+                registrationEndDate = FormatDate(settings?.RegistrationEndDateUtc),
+                withdrawStartDate = FormatDate(settings?.WithdrawStartDateUtc),
+                withdrawEndDate = FormatDate(settings?.WithdrawEndDateUtc),
+                status
             };
 
             return Ok(ApiResponse<object>.SuccessResponse(payload));

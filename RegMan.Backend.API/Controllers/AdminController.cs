@@ -20,6 +20,18 @@ namespace RegMan.Backend.API.Controllers
     [Route("api/admin")]
     public class AdminController : ControllerBase
     {
+        private static string FormatDate(DateTime? utcDate)
+        {
+            return utcDate?.ToString("yyyy-MM-dd") ?? "";
+        }
+
+        private static DateTime? ParseDateOrNull(string? date)
+        {
+            if (string.IsNullOrWhiteSpace(date)) return null;
+            if (!DateTime.TryParse(date, out var local)) return null;
+            return DateTime.SpecifyKind(local.Date, DateTimeKind.Utc);
+        }
+
         // =========================
         // Withdraw Requests
         // =========================
@@ -93,10 +105,28 @@ namespace RegMan.Backend.API.Controllers
             if (req == null)
                 return NotFound(ApiResponse<string>.FailureResponse("Request not found", StatusCodes.Status404NotFound));
 
+            if (req.Status != WithdrawRequestStatus.Pending)
+                return BadRequest(ApiResponse<string>.FailureResponse("Only pending requests can be approved", StatusCodes.Status400BadRequest));
+
+            var enrollment = await unitOfWork.Enrollments.GetAllAsQueryable()
+                .Include(e => e.Section)
+                .FirstOrDefaultAsync(e => e.EnrollmentId == req.EnrollmentId);
+
+            if (enrollment == null)
+                return BadRequest(ApiResponse<string>.FailureResponse("Enrollment not found for this request", StatusCodes.Status400BadRequest));
+
+            if (enrollment.Status != Status.Enrolled && enrollment.Status != Status.Pending)
+                return BadRequest(ApiResponse<string>.FailureResponse("Enrollment is not active; cannot withdraw", StatusCodes.Status400BadRequest));
+
             req.Status = WithdrawRequestStatus.Approved;
             req.ReviewedByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             req.ReviewedAtUtc = DateTime.UtcNow;
-            // TODO: Drop enrollment in DB
+
+            // Drop enrollment in DB
+            enrollment.Status = Status.Dropped;
+            if (enrollment.Section != null)
+                enrollment.Section.AvailableSeats++;
+
             await unitOfWork.SaveChangesAsync();
             return Ok(ApiResponse<string>.SuccessResponse("Withdraw request approved"));
         }
@@ -197,6 +227,81 @@ namespace RegMan.Backend.API.Controllers
         {
             public string RegistrationEndDate { get; set; } = "";
             public string WithdrawEndDate { get; set; } = "";
+        }
+
+        // =========================
+        // Academic Calendar Settings (GET/SET)
+        // Admin sets: registration open/close, withdraw start/end
+        // =========================
+        [HttpGet("academic-calendar-settings")]
+        public async Task<IActionResult> GetAcademicCalendarSettings()
+        {
+            var settings = await unitOfWork.AcademicCalendarSettings.GetAllAsQueryable()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.SettingsKey == "default");
+
+            var payload = new
+            {
+                registrationStartDate = FormatDate(settings?.RegistrationStartDateUtc),
+                registrationEndDate = FormatDate(settings?.RegistrationEndDateUtc),
+                withdrawStartDate = FormatDate(settings?.WithdrawStartDateUtc),
+                withdrawEndDate = FormatDate(settings?.WithdrawEndDateUtc),
+                updatedAtUtc = settings?.UpdatedAtUtc
+            };
+
+            return Ok(ApiResponse<object>.SuccessResponse(payload));
+        }
+
+        public class AcademicCalendarSettingsDTO
+        {
+            public string RegistrationStartDate { get; set; } = "";
+            public string RegistrationEndDate { get; set; } = "";
+            public string WithdrawStartDate { get; set; } = "";
+            public string WithdrawEndDate { get; set; } = "";
+        }
+
+        [HttpPut("academic-calendar-settings")]
+        public async Task<IActionResult> SetAcademicCalendarSettings([FromBody] AcademicCalendarSettingsDTO dto)
+        {
+            var regStartUtc = ParseDateOrNull(dto.RegistrationStartDate);
+            var regEndUtc = ParseDateOrNull(dto.RegistrationEndDate);
+            var withdrawStartUtc = ParseDateOrNull(dto.WithdrawStartDate);
+            var withdrawEndUtc = ParseDateOrNull(dto.WithdrawEndDate);
+
+            if (regStartUtc == null || regEndUtc == null || withdrawStartUtc == null || withdrawEndUtc == null)
+            {
+                return BadRequest(ApiResponse<string>.FailureResponse(
+                    "All four dates are required (yyyy-MM-dd)",
+                    StatusCodes.Status400BadRequest));
+            }
+
+            if (regEndUtc.Value.Date < regStartUtc.Value.Date)
+                return BadRequest(ApiResponse<string>.FailureResponse(
+                    "Registration close date must be on/after registration open date",
+                    StatusCodes.Status400BadRequest));
+
+            if (withdrawEndUtc.Value.Date < withdrawStartUtc.Value.Date)
+                return BadRequest(ApiResponse<string>.FailureResponse(
+                    "Withdraw end date must be on/after withdraw start date",
+                    StatusCodes.Status400BadRequest));
+
+            var settings = await unitOfWork.AcademicCalendarSettings.GetAllAsQueryable()
+                .FirstOrDefaultAsync(s => s.SettingsKey == "default");
+
+            if (settings == null)
+            {
+                settings = new AcademicCalendarSettings { SettingsKey = "default" };
+                await unitOfWork.AcademicCalendarSettings.AddAsync(settings);
+            }
+
+            settings.RegistrationStartDateUtc = regStartUtc.Value;
+            settings.RegistrationEndDateUtc = regEndUtc.Value;
+            settings.WithdrawStartDateUtc = withdrawStartUtc.Value;
+            settings.WithdrawEndDateUtc = withdrawEndUtc.Value;
+            settings.UpdatedAtUtc = DateTime.UtcNow;
+
+            await unitOfWork.SaveChangesAsync();
+            return Ok(ApiResponse<string>.SuccessResponse("Academic calendar timeline updated"));
         }
         // Helper: Admin Info
         // =========================

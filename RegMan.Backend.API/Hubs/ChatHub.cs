@@ -2,6 +2,8 @@
 using Microsoft.AspNetCore.SignalR;
 using RegMan.Backend.BusinessLayer.Contracts;
 using RegMan.Backend.BusinessLayer.DTOs.ChattingDTO;
+using RegMan.Backend.BusinessLayer.Services;
+using RegMan.Backend.DAL.Entities;
 
 namespace RegMan.Backend.API.Hubs
 {
@@ -9,10 +11,12 @@ namespace RegMan.Backend.API.Hubs
     public class ChatHub : Hub
     {
         private readonly IChatService chatService;
+        private readonly INotificationService notificationService;
 
-        public ChatHub(IChatService chatService)
+        public ChatHub(IChatService chatService, INotificationService notificationService)
         {
             this.chatService = chatService;
+            this.notificationService = notificationService;
         }
         public override async Task OnConnectedAsync()
         {
@@ -49,6 +53,16 @@ namespace RegMan.Backend.API.Hubs
 
             await Clients.User(receiverId)
                 .SendAsync("ReceiveMessage", lastMessage);
+
+            // Also create a notification for the receiver (demo-critical)
+            await notificationService.CreateNotificationAsync(
+                userId: receiverId,
+                type: NotificationType.General,
+                title: "New message",
+                message: $"New message from {lastMessage.SenderName}: {lastMessage.Content}",
+                entityType: "Conversation",
+                entityId: conversation.ConversationId
+            );
 
             //return full conversation to sender
             return conversation;
