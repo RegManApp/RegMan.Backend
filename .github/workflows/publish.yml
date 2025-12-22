@@ -7,6 +7,7 @@ jobs:
     env:
       ADMIN_EMAIL: "${{ secrets.ADMIN_EMAIL }}"
       ADMIN_PASSWORD: "${{ secrets.ADMIN_PASSWORD }}"
+      Jwt__Key: "${{ secrets.JWT_KEY }}"
     steps:
       - uses: actions/checkout@v4
 
@@ -55,4 +56,4 @@ jobs:
           server-computer-name: ${{ secrets.SERVER_COMPUTER_NAME }}
           server-username: ${{ secrets.SERVER_USERNAME }}
           server-password: ${{ secrets.SERVER_PASSWORD }}
-          source-path: 'RegMan.Backend.API/publish/'
+          source-path: "RegMan.Backend.API/publish/"

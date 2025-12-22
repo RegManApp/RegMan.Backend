@@ -9,6 +9,7 @@ using RegMan.Backend.BusinessLayer.Services;
 using RegMan.Backend.DAL.Contracts;
 using RegMan.Backend.DAL.Entities;
 using System.Security.Claims;
+using RegMan.Backend.BusinessLayer.Exceptions;
 
 namespace RegMan.Backend.API.Controllers
 {
@@ -132,12 +133,24 @@ namespace RegMan.Backend.API.Controllers
                     StatusCodes.Status401Unauthorized
                 ));
 
-            var valid = await userManager.CheckPasswordAsync(user, dto.Password);
-            if (!valid)
+            // Uses Identity lockout (DB-backed) as minimal login rate limiting
+            var signInResult = await signInManager.CheckPasswordSignInAsync(user, dto.Password, lockoutOnFailure: true);
+            if (signInResult.IsLockedOut)
+            {
+                return StatusCode(StatusCodes.Status429TooManyRequests,
+                    ApiResponse<string>.FailureResponse(
+                        "Too many failed attempts. Please try again later.",
+                        StatusCodes.Status429TooManyRequests
+                    ));
+            }
+
+            if (!signInResult.Succeeded)
+            {
                 return Unauthorized(ApiResponse<string>.FailureResponse(
                     "Invalid credentials",
                     StatusCodes.Status401Unauthorized
                 ));
+            }
 
             var roles = await userManager.GetRolesAsync(user);
 
@@ -297,6 +310,14 @@ namespace RegMan.Backend.API.Controllers
         [HttpPost("refresh")]
         public async Task<IActionResult> Refresh(RefreshTokenRequestDTO dto)
         {
+            if (dto == null || string.IsNullOrWhiteSpace(dto.RefreshToken))
+            {
+                return BadRequest(ApiResponse<string>.FailureResponse(
+                    "Refresh token is required",
+                    StatusCodes.Status400BadRequest
+                ));
+            }
+
             var hash = tokenService.HashToken(dto.RefreshToken);
 
             var storedToken = await unitOfWork.RefreshTokens
@@ -308,7 +329,10 @@ namespace RegMan.Backend.API.Controllers
                     r.ExpiresAt > DateTime.UtcNow);
 
             if (storedToken == null)
-                return Unauthorized("Invalid refresh token");
+                return Unauthorized(ApiResponse<string>.FailureResponse(
+                    "Invalid refresh token",
+                    StatusCodes.Status401Unauthorized
+                ));
 
             storedToken.IsRevoked = true;
 
@@ -327,11 +351,11 @@ namespace RegMan.Backend.API.Controllers
 
             await unitOfWork.SaveChangesAsync();
 
-            return Ok(new LoginResponseDTO
+            return Ok(ApiResponse<LoginResponseDTO>.SuccessResponse(new LoginResponseDTO
             {
                 AccessToken = newAccess,
                 RefreshToken = newRefresh
-            });
+            }, "Token refreshed"));
         }
 
         // =========================
@@ -341,6 +365,14 @@ namespace RegMan.Backend.API.Controllers
         [HttpPost("logout")]
         public async Task<IActionResult> Logout(RefreshTokenRequestDTO dto)
         {
+            if (dto == null || string.IsNullOrWhiteSpace(dto.RefreshToken))
+            {
+                return BadRequest(ApiResponse<string>.FailureResponse(
+                    "Refresh token is required",
+                    StatusCodes.Status400BadRequest
+                ));
+            }
+
             var hash = tokenService.HashToken(dto.RefreshToken);
 
             var token = await unitOfWork.RefreshTokens
@@ -353,7 +385,7 @@ namespace RegMan.Backend.API.Controllers
                 await unitOfWork.SaveChangesAsync();
             }
 
-            return Ok("Logged out successfully");
+            return Ok(ApiResponse<string>.SuccessResponse("Logged out successfully"));
         }
     }
 }

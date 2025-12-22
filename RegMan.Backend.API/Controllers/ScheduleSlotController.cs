@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RegMan.Backend.API.Common;
 using RegMan.Backend.BusinessLayer.Contracts;
 using RegMan.Backend.BusinessLayer.DTOs.ScheduleSlotDTOs;
 
@@ -26,7 +27,7 @@ namespace RegMan.Backend.API.Controllers
         public async Task<IActionResult> Create([FromBody] CreateScheduleSlotDTO dto)
         {
             var result = await scheduleSlotService.CreateAsync(dto);
-            return Ok(result);
+            return Ok(ApiResponse<object>.SuccessResponse(result));
         }
 
         // =========================
@@ -38,7 +39,7 @@ namespace RegMan.Backend.API.Controllers
         public async Task<IActionResult> GetAll()
         {
             var result = await scheduleSlotService.GetAllAsync();
-            return Ok(result);
+            return Ok(ApiResponse<object>.SuccessResponse(result));
         }
 
         // =========================
@@ -50,7 +51,7 @@ namespace RegMan.Backend.API.Controllers
         public async Task<IActionResult> GetBySection(int sectionId)
         {
             var result = await scheduleSlotService.GetBySectionAsync(sectionId);
-            return Ok(result);
+            return Ok(ApiResponse<object>.SuccessResponse(result));
         }
 
         // =========================
@@ -62,7 +63,7 @@ namespace RegMan.Backend.API.Controllers
         public async Task<IActionResult> GetByInstructor(int instructorId)
         {
             var result = await scheduleSlotService.GetByInstructorAsync(instructorId);
-            return Ok(result);
+            return Ok(ApiResponse<object>.SuccessResponse(result));
         }
 
         // =========================
@@ -74,7 +75,7 @@ namespace RegMan.Backend.API.Controllers
         public async Task<IActionResult> GetByRoom(int roomId)
         {
             var result = await scheduleSlotService.GetByRoomAsync(roomId);
-            return Ok(result);
+            return Ok(ApiResponse<object>.SuccessResponse(result));
         }
 
         // =========================
@@ -86,7 +87,7 @@ namespace RegMan.Backend.API.Controllers
         public async Task<IActionResult> Delete(int id)
         {
             await scheduleSlotService.DeleteAsync(id);
-            return Ok(new { message = "Schedule slot deleted successfully." });
+            return Ok(ApiResponse<string>.SuccessResponse("Schedule slot deleted successfully."));
         }
     }
 }

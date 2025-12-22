@@ -10,6 +10,7 @@ env:
   DOTNET_VERSION: "8.0.x"
   ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
   ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+  Jwt__Key: ${{ secrets.JWT_KEY }}
 
 jobs:
   build:

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using RegMan.Backend.API.Common;
 using RegMan.Backend.BusinessLayer.Contracts;
@@ -26,8 +27,11 @@ namespace RegMan.Backend.API.Controllers
         [HttpGet("my-transcript")]
         public async Task<IActionResult> GetMyTranscriptAsync()
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
-                ?? throw new Exception("User not found.");
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userId))
+                return Unauthorized(ApiResponse<string>.FailureResponse(
+                    "Unauthorized",
+                    StatusCodes.Status401Unauthorized));
 
             var transcript = await transcriptService.GetMyTranscriptAsync(userId);
 

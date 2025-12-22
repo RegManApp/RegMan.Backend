@@ -11,6 +11,8 @@ namespace RegMan.Backend.DAL.DataContext
         public DbSet<OfficeHour> OfficeHours { get; set; }
         public DbSet<OfficeHourBooking> OfficeHourBookings { get; set; }
         public DbSet<Notification> Notifications { get; set; }
+        public DbSet<AcademicCalendarSettings> AcademicCalendarSettings { get; set; }
+        public DbSet<WithdrawRequest> WithdrawRequests { get; set; }
         public DbSet<CartItem> CartItems { get; set; }
         public DbSet<Section> Sections { get; set; }
         public DbSet<Conversation> Conversations { get; set; }
@@ -212,6 +214,11 @@ namespace RegMan.Backend.DAL.DataContext
             // 3. UNIQUE CONSTRAINTS
             // ============================
 
+            // Unique constraint: CourseCode must be unique
+            modelBuilder.Entity<Course>()
+                .HasIndex(c => c.CourseCode)
+                .IsUnique();
+
             modelBuilder.Entity<Enrollment>()
                 .HasIndex(e => new { e.StudentId, e.SectionId })
                 .IsUnique();
@@ -233,6 +240,11 @@ namespace RegMan.Backend.DAL.DataContext
             // Unique constraint: Student can only book same office hour once
             modelBuilder.Entity<OfficeHourBooking>()
                 .HasIndex(ohb => new { ohb.OfficeHourId, ohb.StudentId })
+                .IsUnique();
+
+            // Ensure there is only one active calendar settings row (by convention we use SettingsId=1)
+            modelBuilder.Entity<AcademicCalendarSettings>()
+                .HasIndex(s => s.SettingsKey)
                 .IsUnique();
 
             // ============================

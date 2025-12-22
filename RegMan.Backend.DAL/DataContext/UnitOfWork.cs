@@ -24,6 +24,8 @@ namespace RegMan.Backend.DAL.DataContext
         private Lazy<IBaseRepository<ScheduleSlot>> scheduleSlots { get; set; }
         private Lazy<IBaseRepository<Section>> sections { get; set; }
         private Lazy<IBaseRepository<TimeSlot>> timeSlots { get; set; }
+        private Lazy<IBaseRepository<AcademicCalendarSettings>> academicCalendarSettings { get; set; }
+        private Lazy<IBaseRepository<WithdrawRequest>> withdrawRequests { get; set; }
         private Lazy<IBaseRepository<RefreshToken>> refreshTokens;
         private Lazy<IConversationRepository> conversations;
         private Lazy<IBaseRepository<ConversationParticipant>> conversationParticipants;
@@ -48,6 +50,8 @@ namespace RegMan.Backend.DAL.DataContext
             scheduleSlots = new Lazy<IBaseRepository<ScheduleSlot>>(() => new BaseRepository<ScheduleSlot>(dbcontext));
             sections = new Lazy<IBaseRepository<Section>>(() => new BaseRepository<Section>(dbcontext));
             timeSlots = new Lazy<IBaseRepository<TimeSlot>>(() => new BaseRepository<TimeSlot>(dbcontext));
+            academicCalendarSettings = new Lazy<IBaseRepository<AcademicCalendarSettings>>(() => new BaseRepository<AcademicCalendarSettings>(dbcontext));
+            withdrawRequests = new Lazy<IBaseRepository<WithdrawRequest>>(() => new BaseRepository<WithdrawRequest>(dbcontext));
             messages = new Lazy<IMessageRepository>(() => new MessageRepository(dbcontext));
             conversations = new Lazy<IConversationRepository>(() => new ConversationRepository(dbcontext));
             conversationParticipants = new Lazy<IBaseRepository<ConversationParticipant>>(() => new BaseRepository<ConversationParticipant>(dbcontext));
@@ -62,6 +66,8 @@ namespace RegMan.Backend.DAL.DataContext
         public IBaseRepository<CartItem> CartItems => cartItems.Value;
         public IBaseRepository<Room> Rooms => rooms.Value;
         public IBaseRepository<TimeSlot> TimeSlots => timeSlots.Value;
+        public IBaseRepository<AcademicCalendarSettings> AcademicCalendarSettings => academicCalendarSettings.Value;
+        public IBaseRepository<WithdrawRequest> WithdrawRequests => withdrawRequests.Value;
         public IBaseRepository<Section> Sections => sections.Value;
         public IBaseRepository<ScheduleSlot> ScheduleSlots => scheduleSlots.Value;
         public IBaseRepository<OfficeHour> OfficeHours => officeHours.Value;

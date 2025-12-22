@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using RegMan.Backend.API.Common;
 using RegMan.Backend.DAL.DataContext;
 using RegMan.Backend.DAL.Entities;
 using System.Security.Claims;
@@ -33,7 +34,10 @@ namespace RegMan.Backend.API.Controllers
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
                 if (string.IsNullOrEmpty(userId))
                 {
-                    return Unauthorized(new { message = "User not authenticated or userId missing." });
+                    return Unauthorized(ApiResponse<string>.FailureResponse(
+                        "User not authenticated or userId missing.",
+                        StatusCodes.Status401Unauthorized
+                    ));
                 }
 
                 var query = _context.Notifications
@@ -64,7 +68,7 @@ namespace RegMan.Backend.API.Controllers
                     })
                     .ToListAsync();
 
-                return Ok(new
+                var payload = new
                 {
                     notifications,
                     totalCount,
@@ -72,12 +76,18 @@ namespace RegMan.Backend.API.Controllers
                     page,
                     pageSize,
                     totalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
-                });
+                };
+
+                return Ok(ApiResponse<object>.SuccessResponse(payload));
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                // Log the exception in production
-                return StatusCode(500, new { message = "Failed to load notifications.", error = ex.Message });
+                return StatusCode(StatusCodes.Status500InternalServerError,
+                    ApiResponse<string>.FailureResponse(
+                        "Failed to load notifications.",
+                        StatusCodes.Status500InternalServerError
+                    )
+                );
             }
         }
 
@@ -92,18 +102,17 @@ namespace RegMan.Backend.API.Controllers
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
                 if (string.IsNullOrEmpty(userId))
-                    return Ok(new { count = 0 });
+                    return Ok(ApiResponse<object>.SuccessResponse(new { count = 0 }));
 
                 var count = await _context.Notifications
                     .Where(n => n.UserId == userId && !n.IsRead)
                     .CountAsync();
 
-                return Ok(new { count });
+                return Ok(ApiResponse<object>.SuccessResponse(new { count }));
             }
             catch
             {
-                // Log the exception in production
-                return Ok(new { count = 0 });
+                return Ok(ApiResponse<object>.SuccessResponse(new { count = 0 }));
             }
         }
 
@@ -119,7 +128,10 @@ namespace RegMan.Backend.API.Controllers
                 .FirstOrDefaultAsync(n => n.NotificationId == id && n.UserId == userId);
 
             if (notification == null)
-                return NotFound(new { message = "Notification not found" });
+                return NotFound(ApiResponse<string>.FailureResponse(
+                    "Notification not found",
+                    StatusCodes.Status404NotFound
+                ));
 
             if (!notification.IsRead)
             {
@@ -128,7 +140,7 @@ namespace RegMan.Backend.API.Controllers
                 await _context.SaveChangesAsync();
             }
 
-            return Ok(new { message = "Notification marked as read" });
+            return Ok(ApiResponse<string>.SuccessResponse("Notification marked as read"));
         }
 
         /// <summary>
@@ -151,7 +163,7 @@ namespace RegMan.Backend.API.Controllers
 
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = $"Marked {unreadNotifications.Count} notifications as read" });
+            return Ok(ApiResponse<string>.SuccessResponse($"Marked {unreadNotifications.Count} notifications as read"));
         }
 
         /// <summary>
@@ -166,12 +178,15 @@ namespace RegMan.Backend.API.Controllers
                 .FirstOrDefaultAsync(n => n.NotificationId == id && n.UserId == userId);
 
             if (notification == null)
-                return NotFound(new { message = "Notification not found" });
+                return NotFound(ApiResponse<string>.FailureResponse(
+                    "Notification not found",
+                    StatusCodes.Status404NotFound
+                ));
 
             _context.Notifications.Remove(notification);
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Notification deleted" });
+            return Ok(ApiResponse<string>.SuccessResponse("Notification deleted"));
         }
 
         /// <summary>
@@ -189,7 +204,7 @@ namespace RegMan.Backend.API.Controllers
             _context.Notifications.RemoveRange(readNotifications);
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = $"Deleted {readNotifications.Count} notifications" });
+            return Ok(ApiResponse<string>.SuccessResponse($"Deleted {readNotifications.Count} notifications"));
         }
     }
 }

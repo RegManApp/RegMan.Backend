@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RegMan.Backend.API.Common;
 using RegMan.Backend.BusinessLayer.Contracts;
 using RegMan.Backend.BusinessLayer.DTOs.SectionDTOs;
 
@@ -26,7 +27,7 @@ namespace RegMan.Backend.API.Controllers
         public async Task<IActionResult> CreateSectionAsync(CreateSectionDTO sectionDTO)
         {
             var result = await sectionService.CreateSectionAsync(sectionDTO);
-            return Ok(result);
+            return Ok(ApiResponse<ViewSectionDTO>.SuccessResponse(result));
         }
 
         // =========================
@@ -37,7 +38,7 @@ namespace RegMan.Backend.API.Controllers
         public async Task<IActionResult> GetSectionByIdAsync(int id)
         {
             var result = await sectionService.GetSectionByIdAsync(id);
-            return Ok(result);
+            return Ok(ApiResponse<ViewSectionDTO>.SuccessResponse(result));
         }
 
         // =========================
@@ -59,7 +60,7 @@ namespace RegMan.Backend.API.Controllers
                 courseId,
                 seats);
 
-            return Ok(result);
+            return Ok(ApiResponse<IEnumerable<ViewSectionDTO>>.SuccessResponse(result));
         }
 
         // =========================
@@ -71,7 +72,7 @@ namespace RegMan.Backend.API.Controllers
         public async Task<IActionResult> UpdateSectionAsync(UpdateSectionDTO sectionDTO)
         {
             var result = await sectionService.UpdateSectionAsync(sectionDTO);
-            return Ok(result);
+            return Ok(ApiResponse<ViewSectionDTO>.SuccessResponse(result));
         }
 
         // =========================
@@ -83,7 +84,7 @@ namespace RegMan.Backend.API.Controllers
         public async Task<IActionResult> DeleteSectionAsync(int id)
         {
             var result = await sectionService.DeleteSectionAsync(id);
-            return Ok(result);
+            return Ok(ApiResponse<bool>.SuccessResponse(result));
         }
     }
 }

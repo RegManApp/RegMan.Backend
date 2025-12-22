@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RegMan.Backend.API.Common;
@@ -155,7 +156,9 @@ namespace RegMan.Backend.API.Controllers
                     .FirstOrDefaultAsync(i => i.UserId == userId);
 
                 if (instructor == null || enrollment.Section?.InstructorId != instructor.InstructorId)
-                    return Forbid();
+                    return StatusCode(
+                        StatusCodes.Status403Forbidden,
+                        ApiResponse<string>.FailureResponse("Forbidden", StatusCodes.Status403Forbidden));
             }
 
             // Update the grade

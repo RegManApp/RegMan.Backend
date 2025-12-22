@@ -66,6 +66,8 @@ namespace RegMan.Backend.BusinessLayer.Services
             var claims = new List<Claim>
             {
                 new Claim(JwtRegisteredClaimNames.Sub, user.Id),
+                // Keep NameIdentifier for ASP.NET Core APIs + SignalR default IUserIdProvider
+                new Claim(ClaimTypes.NameIdentifier, user.Id),
                 new Claim(JwtRegisteredClaimNames.Email, user.Email ?? ""),
                 new Claim("fullname", user.FullName)
             };
@@ -77,7 +79,9 @@ namespace RegMan.Backend.BusinessLayer.Services
                 issuer: config["Jwt:Issuer"],
                 audience: config["Jwt:Audience"],
                 claims: claims,
-                expires: DateTime.UtcNow.AddMinutes(30),
+                expires: DateTime.UtcNow.AddMinutes(
+                    int.TryParse(config["Jwt:DurationInMinutes"], out var mins) ? mins : 30
+                ),
                 signingCredentials: creds
             );
 

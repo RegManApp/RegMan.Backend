@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using RegMan.Backend.API.Common;
 using RegMan.Backend.DAL.DataContext;
 using RegMan.Backend.DAL.Entities;
 using System.Security.Claims;
@@ -12,10 +13,6 @@ namespace RegMan.Backend.API.Controllers
     [Authorize]
     public class CalendarController : ControllerBase
     {
-        private static DateTime? registrationEndDate = null;
-        private static DateTime? withdrawStartDate = null;
-        private static DateTime? withdrawEndDate = null;
-
         private readonly AppDbContext _context;
 
         public CalendarController(AppDbContext context)
@@ -28,14 +25,20 @@ namespace RegMan.Backend.API.Controllers
         /// </summary>
         [HttpGet("registration-withdraw-dates")]
         [AllowAnonymous]
-        public IActionResult GetRegistrationWithdrawDates()
+        public async Task<IActionResult> GetRegistrationWithdrawDates()
         {
-            return Ok(new
+            var settings = await _context.AcademicCalendarSettings
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.SettingsKey == "default");
+
+            var payload = new
             {
-                registrationEndDate = registrationEndDate?.ToString("yyyy-MM-dd") ?? "",
-                withdrawStartDate = withdrawStartDate?.ToString("yyyy-MM-dd") ?? "",
-                withdrawEndDate = withdrawEndDate?.ToString("yyyy-MM-dd") ?? ""
-            });
+                registrationEndDate = settings?.RegistrationEndDateUtc?.ToString("yyyy-MM-dd") ?? "",
+                withdrawStartDate = settings?.WithdrawStartDateUtc?.ToString("yyyy-MM-dd") ?? "",
+                withdrawEndDate = settings?.WithdrawEndDateUtc?.ToString("yyyy-MM-dd") ?? ""
+            };
+
+            return Ok(ApiResponse<object>.SuccessResponse(payload));
         }
 
         /// <summary>
@@ -64,7 +67,10 @@ namespace RegMan.Backend.API.Controllers
                         .FirstOrDefaultAsync(s => s.UserId == userId);
 
                     if (student == null)
-                        return Ok(new { events = new List<object>(), dateRange = new { start, end }, message = "Student profile not found" });
+                    {
+                        var payload = new { events = new List<object>(), dateRange = new { start, end }, message = "Student profile not found" };
+                        return Ok(ApiResponse<object>.SuccessResponse(payload));
+                    }
 
                     // Get student's office hour bookings
                     var bookings = await _context.OfficeHourBookings
@@ -159,7 +165,10 @@ namespace RegMan.Backend.API.Controllers
                         .FirstOrDefaultAsync(i => i.UserId == userId);
 
                     if (instructor == null)
-                        return Ok(new { events = new List<object>(), dateRange = new { start, end }, message = "Instructor profile not found" });
+                    {
+                        var payload = new { events = new List<object>(), dateRange = new { start, end }, message = "Instructor profile not found" };
+                        return Ok(ApiResponse<object>.SuccessResponse(payload));
+                    }
 
                     // Get instructor's office hours
                     var officeHours = await _context.OfficeHours
@@ -334,20 +343,27 @@ namespace RegMan.Backend.API.Controllers
                     }
                 }
 
-                return Ok(new
+                var resultPayload = new
                 {
                     events,
                     dateRange = new { start, end }
-                });
+                };
+
+                return Ok(ApiResponse<object>.SuccessResponse(resultPayload));
             }
             catch
             {
-                return Ok(new
+                var start = startDate ?? DateTime.UtcNow.Date.AddMonths(-1);
+                var end = endDate ?? DateTime.UtcNow.Date.AddMonths(3);
+
+                var errorPayload = new
                 {
                     events = new List<object>(),
-                    dateRange = new { start = startDate ?? DateTime.UtcNow.Date.AddMonths(-1), end = endDate ?? DateTime.UtcNow.Date.AddMonths(3) },
+                    dateRange = new { start, end },
                     error = "Failed to load calendar events"
-                });
+                };
+
+                return Ok(ApiResponse<object>.SuccessResponse(errorPayload, "Failed to load calendar events"));
             }
         }
 

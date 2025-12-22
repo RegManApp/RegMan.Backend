@@ -77,6 +77,11 @@ namespace RegMan.Backend.API
                 options.Password.RequireNonAlphanumeric = true;
                 options.Password.RequiredLength = 8;
 
+                // Minimal brute-force protection (DB-backed via Identity)
+                options.Lockout.AllowedForNewUsers = true;
+                options.Lockout.MaxFailedAccessAttempts = 5;
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+
                 options.User.RequireUniqueEmail = true;
             })
             .AddEntityFrameworkStores<AppDbContext>()
@@ -85,7 +90,15 @@ namespace RegMan.Backend.API
             // =================
             // JWT Authentication
             // =================
-            var key = Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!);
+            var jwtKey = builder.Configuration["Jwt:Key"]; // supports env var: Jwt__Key
+            if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Contains("SUPER_SECRET_KEY", StringComparison.OrdinalIgnoreCase) || jwtKey.Length < 32)
+            {
+                throw new InvalidOperationException(
+                    "JWT signing key is missing/weak. Configure a strong secret via environment variable 'Jwt__Key' (>= 32 chars)."
+                );
+            }
+
+            var key = Encoding.UTF8.GetBytes(jwtKey);
 
             builder.Services.AddAuthentication(options =>
             {
@@ -107,7 +120,7 @@ namespace RegMan.Backend.API
                     ValidAudience = builder.Configuration["Jwt:Audience"],
                     IssuerSigningKey = new SymmetricSecurityKey(key),
 
-                    NameClaimType = JwtRegisteredClaimNames.Sub,
+                    NameClaimType = ClaimTypes.NameIdentifier,
                     RoleClaimType = ClaimTypes.Role
                 };
                 options.Events = new JwtBearerEvents
@@ -224,6 +237,7 @@ namespace RegMan.Backend.API
                 await RoleSeeder.SeedRolesAsync(roleManager);
                 await UserSeeder.SeedAdminAsync(userManager);
                 await AcademicPlanSeeder.SeedDefaultAcademicPlanAsync(dbContext);
+                await AcademicCalendarSeeder.EnsureDefaultRowAsync(dbContext);
             }
 
             // ==================

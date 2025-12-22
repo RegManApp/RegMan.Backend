@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using RegMan.Backend.API.Common;
 using RegMan.Backend.BusinessLayer.Services;
 using RegMan.Backend.DAL.DataContext;
 using RegMan.Backend.DAL.Entities;
@@ -77,7 +79,9 @@ namespace RegMan.Backend.API.Controllers
                 .FirstOrDefaultAsync(i => i.UserId == userId);
 
             if (instructor == null)
-                return NotFound(new { message = "Instructor profile not found" });
+                return NotFound(ApiResponse<string>.FailureResponse(
+                    "Instructor profile not found",
+                    StatusCodes.Status404NotFound));
 
             var query = _context.OfficeHours
                 .Include(oh => oh.Room)
@@ -123,7 +127,7 @@ namespace RegMan.Backend.API.Controllers
                 })
                 .ToListAsync();
 
-            return Ok(officeHours);
+            return Ok(ApiResponse<object>.SuccessResponse(officeHours));
         }
 
         /// <summary>
@@ -138,16 +142,22 @@ namespace RegMan.Backend.API.Controllers
                 .FirstOrDefaultAsync(i => i.UserId == userId);
 
             if (instructor == null)
-                return NotFound(new { message = "Instructor profile not found" });
+                return NotFound(ApiResponse<string>.FailureResponse(
+                    "Instructor profile not found",
+                    StatusCodes.Status404NotFound));
 
             if (!TimeSpan.TryParse(dto.StartTime, out var startTime) ||
                 !TimeSpan.TryParse(dto.EndTime, out var endTime))
             {
-                return BadRequest(new { message = "Invalid time format. Use HH:mm" });
+                return BadRequest(ApiResponse<string>.FailureResponse(
+                    "Invalid time format. Use HH:mm",
+                    StatusCodes.Status400BadRequest));
             }
 
             if (endTime <= startTime)
-                return BadRequest(new { message = "End time must be after start time" });
+                return BadRequest(ApiResponse<string>.FailureResponse(
+                    "End time must be after start time",
+                    StatusCodes.Status400BadRequest));
 
             // Check for overlapping office hours
             var hasOverlap = await _context.OfficeHours
@@ -159,7 +169,9 @@ namespace RegMan.Backend.API.Controllers
                                 (startTime <= oh.StartTime && endTime >= oh.EndTime)));
 
             if (hasOverlap)
-                return BadRequest(new { message = "This time slot overlaps with an existing office hour" });
+                return BadRequest(ApiResponse<string>.FailureResponse(
+                    "This time slot overlaps with an existing office hour",
+                    StatusCodes.Status400BadRequest));
 
             var officeHour = new OfficeHour
             {
@@ -177,11 +189,9 @@ namespace RegMan.Backend.API.Controllers
             _context.OfficeHours.Add(officeHour);
             await _context.SaveChangesAsync();
 
-            return Ok(new
-            {
-                message = "Office hour created successfully",
-                officeHourId = officeHour.OfficeHourId
-            });
+            return Ok(ApiResponse<object>.SuccessResponse(
+                new { officeHourId = officeHour.OfficeHourId },
+                "Office hour created successfully"));
         }
 
         /// <summary>
@@ -196,7 +206,9 @@ namespace RegMan.Backend.API.Controllers
                 .FirstOrDefaultAsync(i => i.UserId == userId);
 
             if (instructor == null)
-                return NotFound(new { message = "Instructor profile not found" });
+                return NotFound(ApiResponse<string>.FailureResponse(
+                    "Instructor profile not found",
+                    StatusCodes.Status404NotFound));
 
             var createdIds = new List<int>();
             var errors = new List<string>();
@@ -234,12 +246,9 @@ namespace RegMan.Backend.API.Controllers
                 createdIds.Add(officeHour.OfficeHourId);
             }
 
-            return Ok(new
-            {
-                message = $"Created {createdIds.Count} office hours",
-                createdIds,
-                errors
-            });
+            return Ok(ApiResponse<object>.SuccessResponse(
+                new { createdIds, errors },
+                $"Created {createdIds.Count} office hours"));
         }
 
         /// <summary>
@@ -254,17 +263,23 @@ namespace RegMan.Backend.API.Controllers
                 .FirstOrDefaultAsync(i => i.UserId == userId);
 
             if (instructor == null)
-                return NotFound(new { message = "Instructor profile not found" });
+                return NotFound(ApiResponse<string>.FailureResponse(
+                    "Instructor profile not found",
+                    StatusCodes.Status404NotFound));
 
             var officeHour = await _context.OfficeHours
                 .Include(oh => oh.Bookings)
                 .FirstOrDefaultAsync(oh => oh.OfficeHourId == id && oh.InstructorId == instructor.InstructorId);
 
             if (officeHour == null)
-                return NotFound(new { message = "Office hour not found" });
+                return NotFound(ApiResponse<string>.FailureResponse(
+                    "Office hour not found",
+                    StatusCodes.Status404NotFound));
 
             if (officeHour.Bookings.Any(b => b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Pending))
-                return BadRequest(new { message = "Cannot modify office hour with active bookings" });
+                return BadRequest(ApiResponse<string>.FailureResponse(
+                    "Cannot modify office hour with active bookings",
+                    StatusCodes.Status400BadRequest));
 
             if (dto.Date.HasValue)
                 officeHour.Date = dto.Date.Value.Date;
@@ -285,7 +300,7 @@ namespace RegMan.Backend.API.Controllers
 
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Office hour updated successfully" });
+            return Ok(ApiResponse<string>.SuccessResponse("Office hour updated successfully"));
         }
 
         /// <summary>
@@ -300,14 +315,18 @@ namespace RegMan.Backend.API.Controllers
                 .FirstOrDefaultAsync(i => i.UserId == userId);
 
             if (instructor == null)
-                return NotFound(new { message = "Instructor profile not found" });
+                return NotFound(ApiResponse<string>.FailureResponse(
+                    "Instructor profile not found",
+                    StatusCodes.Status404NotFound));
 
             var officeHour = await _context.OfficeHours
                 .Include(oh => oh.Bookings)
                 .FirstOrDefaultAsync(oh => oh.OfficeHourId == id && oh.InstructorId == instructor.InstructorId);
 
             if (officeHour == null)
-                return NotFound(new { message = "Office hour not found" });
+                return NotFound(ApiResponse<string>.FailureResponse(
+                    "Office hour not found",
+                    StatusCodes.Status404NotFound));
 
             // Cancel any existing bookings and notify students
             foreach (var booking in officeHour.Bookings.Where(b => b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed))
@@ -340,7 +359,7 @@ namespace RegMan.Backend.API.Controllers
             _context.OfficeHours.Remove(officeHour);
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Office hour deleted successfully" });
+            return Ok(ApiResponse<string>.SuccessResponse("Office hour deleted successfully"));
         }
 
         /// <summary>
@@ -355,7 +374,9 @@ namespace RegMan.Backend.API.Controllers
                 .FirstOrDefaultAsync(i => i.UserId == userId);
 
             if (instructor == null)
-                return NotFound(new { message = "Instructor profile not found" });
+                return NotFound(ApiResponse<string>.FailureResponse(
+                    "Instructor profile not found",
+                    StatusCodes.Status404NotFound));
 
             var booking = await _context.OfficeHourBookings
                 .Include(b => b.OfficeHour)
@@ -364,10 +385,14 @@ namespace RegMan.Backend.API.Controllers
                 .FirstOrDefaultAsync(b => b.BookingId == bookingId && b.OfficeHour.InstructorId == instructor.InstructorId);
 
             if (booking == null)
-                return NotFound(new { message = "Booking not found" });
+                return NotFound(ApiResponse<string>.FailureResponse(
+                    "Booking not found",
+                    StatusCodes.Status404NotFound));
 
             if (booking.Status != BookingStatus.Pending)
-                return BadRequest(new { message = "Booking is not in pending status" });
+                return BadRequest(ApiResponse<string>.FailureResponse(
+                    "Booking is not in pending status",
+                    StatusCodes.Status400BadRequest));
 
             booking.Status = BookingStatus.Confirmed;
             booking.ConfirmedAt = DateTime.UtcNow;
@@ -389,7 +414,7 @@ namespace RegMan.Backend.API.Controllers
 
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Booking confirmed successfully" });
+            return Ok(ApiResponse<string>.SuccessResponse("Booking confirmed successfully"));
         }
 
         /// <summary>
@@ -404,19 +429,23 @@ namespace RegMan.Backend.API.Controllers
                 .FirstOrDefaultAsync(i => i.UserId == userId);
 
             if (instructor == null)
-                return NotFound(new { message = "Instructor profile not found" });
+                return NotFound(ApiResponse<string>.FailureResponse(
+                    "Instructor profile not found",
+                    StatusCodes.Status404NotFound));
 
             var booking = await _context.OfficeHourBookings
                 .Include(b => b.OfficeHour)
                 .FirstOrDefaultAsync(b => b.BookingId == bookingId && b.OfficeHour.InstructorId == instructor.InstructorId);
 
             if (booking == null)
-                return NotFound(new { message = "Booking not found" });
+                return NotFound(ApiResponse<string>.FailureResponse(
+                    "Booking not found",
+                    StatusCodes.Status404NotFound));
 
             booking.InstructorNotes = dto.Notes;
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Notes added successfully" });
+            return Ok(ApiResponse<string>.SuccessResponse("Notes added successfully"));
         }
 
         /// <summary>
@@ -431,17 +460,23 @@ namespace RegMan.Backend.API.Controllers
                 .FirstOrDefaultAsync(i => i.UserId == userId);
 
             if (instructor == null)
-                return NotFound(new { message = "Instructor profile not found" });
+                return NotFound(ApiResponse<string>.FailureResponse(
+                    "Instructor profile not found",
+                    StatusCodes.Status404NotFound));
 
             var booking = await _context.OfficeHourBookings
                 .Include(b => b.OfficeHour)
                 .FirstOrDefaultAsync(b => b.BookingId == bookingId && b.OfficeHour.InstructorId == instructor.InstructorId);
 
             if (booking == null)
-                return NotFound(new { message = "Booking not found" });
+                return NotFound(ApiResponse<string>.FailureResponse(
+                    "Booking not found",
+                    StatusCodes.Status404NotFound));
 
             if (booking.Status != BookingStatus.Confirmed)
-                return BadRequest(new { message = "Booking must be confirmed before completing" });
+                return BadRequest(ApiResponse<string>.FailureResponse(
+                    "Booking must be confirmed before completing",
+                    StatusCodes.Status400BadRequest));
 
             booking.Status = BookingStatus.Completed;
             booking.CompletedAt = DateTime.UtcNow;
@@ -449,7 +484,7 @@ namespace RegMan.Backend.API.Controllers
 
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Booking marked as completed" });
+            return Ok(ApiResponse<string>.SuccessResponse("Booking marked as completed"));
         }
 
         /// <summary>
@@ -464,21 +499,25 @@ namespace RegMan.Backend.API.Controllers
                 .FirstOrDefaultAsync(i => i.UserId == userId);
 
             if (instructor == null)
-                return NotFound(new { message = "Instructor profile not found" });
+                return NotFound(ApiResponse<string>.FailureResponse(
+                    "Instructor profile not found",
+                    StatusCodes.Status404NotFound));
 
             var booking = await _context.OfficeHourBookings
                 .Include(b => b.OfficeHour)
                 .FirstOrDefaultAsync(b => b.BookingId == bookingId && b.OfficeHour.InstructorId == instructor.InstructorId);
 
             if (booking == null)
-                return NotFound(new { message = "Booking not found" });
+                return NotFound(ApiResponse<string>.FailureResponse(
+                    "Booking not found",
+                    StatusCodes.Status404NotFound));
 
             booking.Status = BookingStatus.NoShow;
             booking.OfficeHour.Status = OfficeHourStatus.Available;
 
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Booking marked as no-show" });
+            return Ok(ApiResponse<string>.SuccessResponse("Booking marked as no-show"));
         }
 
         // =============================================
@@ -533,7 +572,7 @@ namespace RegMan.Backend.API.Controllers
                 })
                 .ToListAsync();
 
-            return Ok(officeHours);
+            return Ok(ApiResponse<object>.SuccessResponse(officeHours));
         }
 
         /// <summary>
@@ -561,7 +600,7 @@ namespace RegMan.Backend.API.Controllers
                 .OrderBy(i => i.FullName)
                 .ToListAsync();
 
-            return Ok(instructors);
+            return Ok(ApiResponse<object>.SuccessResponse(instructors));
         }
 
         /// <summary>
@@ -577,7 +616,9 @@ namespace RegMan.Backend.API.Controllers
                 .FirstOrDefaultAsync(s => s.UserId == userId);
 
             if (student == null)
-                return NotFound(new { message = "Student profile not found" });
+                return NotFound(ApiResponse<string>.FailureResponse(
+                    "Student profile not found",
+                    StatusCodes.Status404NotFound));
 
             var officeHour = await _context.OfficeHours
                 .Include(oh => oh.Instructor)
@@ -585,13 +626,19 @@ namespace RegMan.Backend.API.Controllers
                 .FirstOrDefaultAsync(oh => oh.OfficeHourId == id);
 
             if (officeHour == null)
-                return NotFound(new { message = "Office hour not found" });
+                return NotFound(ApiResponse<string>.FailureResponse(
+                    "Office hour not found",
+                    StatusCodes.Status404NotFound));
 
             if (officeHour.Status != OfficeHourStatus.Available)
-                return BadRequest(new { message = "This office hour is no longer available" });
+                return BadRequest(ApiResponse<string>.FailureResponse(
+                    "This office hour is no longer available",
+                    StatusCodes.Status400BadRequest));
 
             if (officeHour.Date.Date < DateTime.UtcNow.Date)
-                return BadRequest(new { message = "Cannot book past office hours" });
+                return BadRequest(ApiResponse<string>.FailureResponse(
+                    "Cannot book past office hours",
+                    StatusCodes.Status400BadRequest));
 
             // Check if student already has a booking for this slot
             var existingBooking = await _context.OfficeHourBookings
@@ -600,7 +647,9 @@ namespace RegMan.Backend.API.Controllers
                               (b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed));
 
             if (existingBooking)
-                return BadRequest(new { message = "You already have a booking for this office hour" });
+                return BadRequest(ApiResponse<string>.FailureResponse(
+                    "You already have a booking for this office hour",
+                    StatusCodes.Status400BadRequest));
 
             var booking = new OfficeHourBooking
             {
@@ -634,11 +683,9 @@ namespace RegMan.Backend.API.Controllers
             notification.EntityId = booking.BookingId;
             await _context.SaveChangesAsync();
 
-            return Ok(new
-            {
-                message = "Office hour booked successfully",
-                bookingId = booking.BookingId
-            });
+            return Ok(ApiResponse<object>.SuccessResponse(
+                new { bookingId = booking.BookingId },
+                "Office hour booked successfully"));
         }
 
         /// <summary>
@@ -653,7 +700,9 @@ namespace RegMan.Backend.API.Controllers
                 .FirstOrDefaultAsync(s => s.UserId == userId);
 
             if (student == null)
-                return NotFound(new { message = "Student profile not found" });
+                return NotFound(ApiResponse<string>.FailureResponse(
+                    "Student profile not found",
+                    StatusCodes.Status404NotFound));
 
             var query = _context.OfficeHourBookings
                 .Include(b => b.OfficeHour)
@@ -701,7 +750,7 @@ namespace RegMan.Backend.API.Controllers
                 })
                 .ToListAsync();
 
-            return Ok(bookings);
+            return Ok(ApiResponse<object>.SuccessResponse(bookings));
         }
 
         /// <summary>
@@ -723,27 +772,35 @@ namespace RegMan.Backend.API.Controllers
                 .FirstOrDefaultAsync(b => b.BookingId == bookingId);
 
             if (booking == null)
-                return NotFound(new { message = "Booking not found" });
+                return NotFound(ApiResponse<string>.FailureResponse(
+                    "Booking not found",
+                    StatusCodes.Status404NotFound));
 
             // Verify ownership
             if (userRole == "Student")
             {
                 var student = await _context.Students.FirstOrDefaultAsync(s => s.UserId == userId);
                 if (student == null || booking.StudentId != student.StudentId)
-                    return Forbid();
+                    return StatusCode(StatusCodes.Status403Forbidden,
+                        ApiResponse<string>.FailureResponse("Forbidden", StatusCodes.Status403Forbidden));
             }
             else if (userRole == "Instructor")
             {
                 var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.UserId == userId);
                 if (instructor == null || booking.OfficeHour.InstructorId != instructor.InstructorId)
-                    return Forbid();
+                    return StatusCode(StatusCodes.Status403Forbidden,
+                        ApiResponse<string>.FailureResponse("Forbidden", StatusCodes.Status403Forbidden));
             }
 
             if (booking.Status == BookingStatus.Cancelled)
-                return BadRequest(new { message = "Booking is already cancelled" });
+                return BadRequest(ApiResponse<string>.FailureResponse(
+                    "Booking is already cancelled",
+                    StatusCodes.Status400BadRequest));
 
             if (booking.Status == BookingStatus.Completed)
-                return BadRequest(new { message = "Cannot cancel a completed booking" });
+                return BadRequest(ApiResponse<string>.FailureResponse(
+                    "Cannot cancel a completed booking",
+                    StatusCodes.Status400BadRequest));
 
             booking.Status = BookingStatus.Cancelled;
             booking.CancellationReason = dto.Reason;
@@ -777,7 +834,7 @@ namespace RegMan.Backend.API.Controllers
             _context.Notifications.Add(notification);
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Booking cancelled successfully" });
+            return Ok(ApiResponse<string>.SuccessResponse("Booking cancelled successfully"));
         }
 
         // =============================================
@@ -849,7 +906,7 @@ namespace RegMan.Backend.API.Controllers
                 })
                 .ToListAsync();
 
-            return Ok(officeHours);
+            return Ok(ApiResponse<object>.SuccessResponse(officeHours));
         }
     }
 }

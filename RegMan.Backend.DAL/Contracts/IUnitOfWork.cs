@@ -27,6 +27,9 @@ namespace RegMan.Backend.DAL.Contracts
         public IBaseRepository<Cart> Carts { get; }
         public IBaseRepository<CartItem> CartItems { get; }
 
+        IBaseRepository<AcademicCalendarSettings> AcademicCalendarSettings { get; }
+        IBaseRepository<WithdrawRequest> WithdrawRequests { get; }
+
         IBaseRepository<RefreshToken> RefreshTokens { get; }
 
 

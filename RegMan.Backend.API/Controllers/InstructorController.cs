@@ -97,7 +97,10 @@ public class InstructorController : ControllerBase
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (userId == null)
-                return Unauthorized();
+                return Unauthorized(ApiResponse<string>.FailureResponse(
+                    "Unauthorized",
+                    StatusCodes.Status401Unauthorized
+                ));
 
             var instructor = await instructorService.GetByIdAsync(id);
             if (instructor == null)
@@ -117,7 +120,10 @@ public class InstructorController : ControllerBase
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null)
-            return Unauthorized();
+            return Unauthorized(ApiResponse<string>.FailureResponse(
+                "Unauthorized",
+                StatusCodes.Status401Unauthorized
+            ));
 
         var instructor = await instructorService.GetByUserIdAsync(userId);
         if (instructor == null)

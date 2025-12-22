@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RegMan.Backend.API.Common;
@@ -55,7 +56,9 @@ namespace RegMan.Backend.API.Controllers
             // Check authorization - admin can see all, students can only see their own
             var userId = GetUserId();
             if (!User.IsInRole("Admin") && enrollment.Student?.UserId != userId)
-                return Forbid();
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    ApiResponse<string>.FailureResponse("Forbidden", StatusCodes.Status403Forbidden));
 
             var dto = new ViewEnrollmentDTO
             {
@@ -107,7 +110,9 @@ namespace RegMan.Backend.API.Controllers
                     .FirstOrDefaultAsync(i => i.UserId == userId);
 
                 if (instructor == null || enrollment.Section?.InstructorId != instructor.InstructorId)
-                    return Forbid();
+                    return StatusCode(
+                        StatusCodes.Status403Forbidden,
+                        ApiResponse<string>.FailureResponse("Forbidden", StatusCodes.Status403Forbidden));
             }
 
             // Update grade if provided
@@ -184,7 +189,9 @@ namespace RegMan.Backend.API.Controllers
 
             // Students can only drop their own enrollments
             if (!User.IsInRole("Admin") && enrollment.Student?.UserId != userId)
-                return Forbid();
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    ApiResponse<string>.FailureResponse("Forbidden", StatusCodes.Status403Forbidden));
 
             // Can only drop if currently enrolled or pending
             if (enrollment.Status != Status.Enrolled && enrollment.Status != Status.Pending)

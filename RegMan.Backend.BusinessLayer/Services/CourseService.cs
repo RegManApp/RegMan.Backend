@@ -7,6 +7,7 @@ using RegMan.Backend.DAL.Entities;
 using System.Linq.Expressions;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
+using RegMan.Backend.BusinessLayer.Exceptions;
 
 namespace RegMan.Backend.BusinessLayer.Services
 {
@@ -53,11 +54,21 @@ namespace RegMan.Backend.BusinessLayer.Services
             if (courseDTO == null)
                 throw new ArgumentNullException(nameof(courseDTO));
 
+            var normalizedCode = (courseDTO.CourseCode ?? string.Empty).Trim().ToUpperInvariant();
+            if (string.IsNullOrWhiteSpace(normalizedCode))
+                throw new BadRequestException("Course code is required");
+
+            var codeExists = await unitOfWork.Courses
+                .GetAllAsQueryable()
+                .AnyAsync(c => c.CourseCode == normalizedCode);
+            if (codeExists)
+                throw new ConflictException("Course code already exists", errors: new { courseCode = normalizedCode });
+
             var course = new Course
             {
                 CourseName = courseDTO.CourseName,
                 CreditHours = courseDTO.CreditHours,
-                CourseCode = courseDTO.CourseCode,
+                CourseCode = normalizedCode,
                 CourseCategory = (CourseCategory)courseDTO.CourseCategoryId,
                 Description = courseDTO.Description
             };
@@ -95,7 +106,7 @@ namespace RegMan.Backend.BusinessLayer.Services
             bool deleted = await unitOfWork.Courses.DeleteAsync(id);
 
             if (!deleted)
-                throw new Exception($"Course with ID {id} not found.");
+                throw new NotFoundException($"Course with ID {id} not found.");
 
             await unitOfWork.SaveChangesAsync();
 
@@ -221,7 +232,7 @@ namespace RegMan.Backend.BusinessLayer.Services
             var result = await query.SingleOrDefaultAsync();
 
             if (result == null)
-                throw new Exception($"Course with ID: {id} not found.");
+                throw new NotFoundException($"Course with ID: {id} not found.");
 
             return result;
         }
@@ -234,7 +245,7 @@ namespace RegMan.Backend.BusinessLayer.Services
             var course = await unitOfWork.Courses.GetByIdAsync(id);
 
             if (course == null)
-                throw new Exception($"Course with ID: {id} not found.");
+                throw new NotFoundException($"Course with ID: {id} not found.");
 
             return new ViewCourseDetailsDTO
             {
@@ -258,11 +269,21 @@ namespace RegMan.Backend.BusinessLayer.Services
 
             var existingCourse = await unitOfWork.Courses.GetByIdAsync(courseDTO.CourseId);
             if (existingCourse == null)
-                throw new Exception($"Course with ID {courseDTO.CourseId} not found.");
+                throw new NotFoundException($"Course with ID {courseDTO.CourseId} not found.");
+
+            var normalizedCode = (courseDTO.CourseCode ?? string.Empty).Trim().ToUpperInvariant();
+            if (string.IsNullOrWhiteSpace(normalizedCode))
+                throw new BadRequestException("Course code is required");
+
+            var codeExists = await unitOfWork.Courses
+                .GetAllAsQueryable()
+                .AnyAsync(c => c.CourseId != courseDTO.CourseId && c.CourseCode == normalizedCode);
+            if (codeExists)
+                throw new ConflictException("Course code already exists", errors: new { courseCode = normalizedCode });
 
             existingCourse.CourseName = courseDTO.CourseName;
             existingCourse.CreditHours = courseDTO.CreditHours;
-            existingCourse.CourseCode = courseDTO.CourseCode;
+            existingCourse.CourseCode = normalizedCode;
             existingCourse.CourseCategory = (CourseCategory)courseDTO.CourseCategoryId;
             existingCourse.Description = courseDTO.Description;
 
