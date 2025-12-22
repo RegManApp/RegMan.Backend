@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using RegMan.Backend.API.Common;
 using RegMan.Backend.BusinessLayer.Contracts;
 using RegMan.Backend.BusinessLayer.DTOs.RoomDTOs;
+using RegMan.Backend.BusinessLayer.DTOs.TimeSlotDTOs;
+using System;
 
 namespace RegMan.Backend.API.Controllers
 {
@@ -12,10 +14,12 @@ namespace RegMan.Backend.API.Controllers
     public class RoomController : ControllerBase
     {
         private readonly IRoomService roomService;
+        private readonly ITimeSlotService timeSlotService;
 
-        public RoomController(IRoomService roomService)
+        public RoomController(IRoomService roomService, ITimeSlotService timeSlotService)
         {
             this.roomService = roomService;
+            this.timeSlotService = timeSlotService;
         }
 
         // =========================
@@ -51,6 +55,38 @@ namespace RegMan.Backend.API.Controllers
         public async Task<IActionResult> Create([FromBody] CreateRoomDTO dto)
         {
             var room = await roomService.CreateRoomAsync(dto);
+
+            // Automatically create 12 time slots for each day (Saturday to Thursday)
+            // Each slot is 1 hour, starting from 8:30 AM
+            var days = new[]
+            {
+                DayOfWeek.Saturday,
+                DayOfWeek.Sunday,
+                DayOfWeek.Monday,
+                DayOfWeek.Tuesday,
+                DayOfWeek.Wednesday,
+                DayOfWeek.Thursday
+            };
+
+            foreach (var day in days)
+            {
+                for (int i = 0; i < 12; i++)
+                {
+                    var startTime = new TimeSpan(8, 30, 0) + TimeSpan.FromHours(i);
+                    var endTime = startTime + TimeSpan.FromHours(1);
+
+                    var timeSlotDto = new CreateTimeSlotDTO
+                    {
+                        RoomId = room.RoomId,
+                        Day = day,
+                        StartTime = startTime,
+                        EndTime = endTime
+                    };
+
+                    await timeSlotService.CreateTimeSlotAsync(timeSlotDto);
+                }
+            }
+
             return Ok(ApiResponse<ViewRoomDTO>.SuccessResponse(room));
         }
 

@@ -66,6 +66,13 @@ namespace RegMan.Backend.BusinessLayer.Services
             var scheduleSlots = new List<ViewScheduleSlotDTO>();
             if (dto.RoomId > 0 && dto.TimeSlotId > 0 && dto.InstructorId.HasValue)
             {
+                // Validate that the time slot belongs to the selected room
+                var timeSlot = await unitOfWork.TimeSlots.GetByIdAsync(dto.TimeSlotId);
+                if (timeSlot == null)
+                    throw new Exception("Time slot not found");
+                if (timeSlot.RoomId != dto.RoomId)
+                    throw new Exception("Selected time slot does not belong to the selected room.");
+
                 var scheduleSlot = new ScheduleSlot
                 {
                     SectionId = section.SectionId,
@@ -80,7 +87,6 @@ namespace RegMan.Backend.BusinessLayer.Services
 
                 // Load the slot with related data for response
                 var room = await unitOfWork.Rooms.GetByIdAsync(dto.RoomId);
-                var timeSlot = await unitOfWork.TimeSlots.GetByIdAsync(dto.TimeSlotId);
 
                 scheduleSlots.Add(new ViewScheduleSlotDTO
                 {
@@ -187,18 +193,15 @@ namespace RegMan.Backend.BusinessLayer.Services
                     {
                         ScheduleSlotId = slot.ScheduleSlotId,
                         SectionId = slot.SectionId,
-                        SectionName =
-                            s.Course.CourseName + " - Section " + s.SectionId,
+                        SectionName = s.Course.CourseName + " - Section " + s.SectionId,
 
                         RoomId = slot.RoomId,
-                        Room =
-                            slot.Room.Building + " - " + slot.Room.RoomNumber,
+                        Room = slot.Room.Building + " - " + slot.Room.RoomNumber,
 
                         TimeSlotId = slot.TimeSlotId,
-                        TimeSlot =
-                            slot.TimeSlot.Day + " " +
-                            slot.TimeSlot.StartTime + "-" +
-                            slot.TimeSlot.EndTime,
+                        TimeSlot = slot.TimeSlot.Day.ToString() + " " +
+                                   slot.TimeSlot.StartTime.ToString(@"hh\:mm") + "-" +
+                                   slot.TimeSlot.EndTime.ToString(@"hh\:mm"),
 
                         InstructorId = slot.InstructorId,
                         InstructorName = slot.Instructor.User.FullName,
@@ -280,18 +283,15 @@ namespace RegMan.Backend.BusinessLayer.Services
                     {
                         ScheduleSlotId = slot.ScheduleSlotId,
                         SectionId = slot.SectionId,
-                        SectionName =
-                            s.Course.CourseName + " - Section " + s.SectionId,
+                        SectionName = s.Course.CourseName + " - Section " + s.SectionId,
 
                         RoomId = slot.RoomId,
-                        Room =
-                            slot.Room.Building + " - " + slot.Room.RoomNumber,
+                        Room = slot.Room.Building + " - " + slot.Room.RoomNumber,
 
                         TimeSlotId = slot.TimeSlotId,
-                        TimeSlot =
-                            slot.TimeSlot.Day + " " +
-                            slot.TimeSlot.StartTime + "-" +
-                            slot.TimeSlot.EndTime,
+                        TimeSlot = slot.TimeSlot.Day.ToString() + " " +
+                                   slot.TimeSlot.StartTime.ToString(@"hh\:mm") + "-" +
+                                   slot.TimeSlot.EndTime.ToString(@"hh\:mm"),
 
                         InstructorId = slot.InstructorId,
                         InstructorName = slot.Instructor.User.FullName,
@@ -299,7 +299,6 @@ namespace RegMan.Backend.BusinessLayer.Services
                     }).ToList()
                 });
         }
-
 
         // =========================
         // Mapper
@@ -329,13 +328,13 @@ namespace RegMan.Backend.BusinessLayer.Services
                     SectionId = slot.SectionId,
                     SectionName = s.Course.CourseName + " - Section " + s.SectionId,
                     RoomId = slot.RoomId,
-                    Room = slot.Room.Building + " - " + slot.Room.RoomNumber,
+                    Room = (slot.Room?.Building ?? "Unknown") + " - " + (slot.Room?.RoomNumber ?? "Unknown"),
                     TimeSlotId = slot.TimeSlotId,
                     TimeSlot = slot.TimeSlot.Day + " " +
-                               slot.TimeSlot.StartTime + "-" +
-                               slot.TimeSlot.EndTime,
+                               (slot.TimeSlot?.StartTime != null ? slot.TimeSlot.StartTime.ToString(@"hh\:mm") : "??") + "-" +
+                               (slot.TimeSlot?.EndTime != null ? slot.TimeSlot.EndTime.ToString(@"hh\:mm") : "??"),
                     InstructorId = slot.InstructorId,
-                    InstructorName = slot.Instructor.User.FullName,
+                    InstructorName = slot.Instructor?.User?.FullName ?? "Unknown Instructor",
                     SlotType = slot.SlotType.ToString()
                 }).ToList()
             };

@@ -6,7 +6,7 @@ using RegMan.Backend.DAL.Entities;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 
-namespace RegMan.Backend.BusinessLayer.Services
+namespace RegMan.Backend.BusinessLayer.Services 
 {
     public class TimeSlotService : ITimeSlotService
     {
@@ -38,12 +38,65 @@ namespace RegMan.Backend.BusinessLayer.Services
         }
 
         // =========================
+        // Update
+        // =========================
+        public async Task<ViewTimeSlotDTO> UpdateTimeSlotAsync(UpdateTimeSlotDTO dto)
+        {
+            var slot = await unitOfWork.TimeSlots.GetByIdAsync(dto.TimeSlotId);
+            if (slot == null)
+                throw new Exception("TimeSlot not found.");
+
+            // Update fields
+            slot.RoomId = dto.RoomId;
+            slot.Day = dto.Day;
+            slot.StartTime = dto.StartTime;
+            slot.EndTime = dto.EndTime;
+
+            if (!slot.IsValid())
+                throw new Exception("End time must be greater than start time.");
+
+            // Prevent overlapping time slots for the same room and day (excluding self)
+            var overlapping = await unitOfWork.TimeSlots.GetAllAsQueryable()
+                .AnyAsync(ts =>
+                    ts.TimeSlotId != slot.TimeSlotId &&
+                    ts.RoomId == slot.RoomId &&
+                    ts.Day == slot.Day &&
+                    ((slot.StartTime < ts.EndTime && slot.EndTime > ts.StartTime))
+                );
+            if (overlapping)
+                throw new Exception("This time slot overlaps with an existing slot for this room.");
+
+            unitOfWork.TimeSlots.Update(slot);
+            await unitOfWork.SaveChangesAsync();
+
+            // Audit Log
+            var (userId, email) = GetUserInfo();
+            await auditLogService.LogAsync(
+                userId,
+                email,
+                "UPDATE",
+                "TimeSlot",
+                slot.TimeSlotId.ToString()
+            );
+
+            return new ViewTimeSlotDTO
+            {
+                TimeSlotId = slot.TimeSlotId,
+                RoomId = slot.RoomId,
+                Day = slot.Day,
+                StartTime = slot.StartTime,
+                EndTime = slot.EndTime
+            };
+        }
+
+        // =========================
         // Create
         // =========================
         public async Task<ViewTimeSlotDTO> CreateTimeSlotAsync(CreateTimeSlotDTO dto)
         {
             var slot = new TimeSlot
             {
+                RoomId = dto.RoomId,
                 Day = dto.Day,
                 StartTime = dto.StartTime,
                 EndTime = dto.EndTime
@@ -51,6 +104,16 @@ namespace RegMan.Backend.BusinessLayer.Services
 
             if (!slot.IsValid())
                 throw new Exception("End time must be greater than start time.");
+
+            // Prevent overlapping time slots for the same room and day
+            var overlapping = await unitOfWork.TimeSlots.GetAllAsQueryable()
+                .AnyAsync(ts =>
+                    ts.RoomId == slot.RoomId &&
+                    ts.Day == slot.Day &&
+                    ((slot.StartTime < ts.EndTime && slot.EndTime > ts.StartTime))
+                );
+            if (overlapping)
+                throw new Exception("This time slot overlaps with an existing slot for this room.");
 
             await unitOfWork.TimeSlots.AddAsync(slot);
             await unitOfWork.SaveChangesAsync();
@@ -68,6 +131,7 @@ namespace RegMan.Backend.BusinessLayer.Services
             return new ViewTimeSlotDTO
             {
                 TimeSlotId = slot.TimeSlotId,
+                RoomId = slot.RoomId,
                 Day = slot.Day,
                 StartTime = slot.StartTime,
                 EndTime = slot.EndTime
@@ -108,6 +172,7 @@ namespace RegMan.Backend.BusinessLayer.Services
             return slots.Select(s => new ViewTimeSlotDTO
             {
                 TimeSlotId = s.TimeSlotId,
+                RoomId = s.RoomId,
                 Day = s.Day,
                 StartTime = s.StartTime,
                 EndTime = s.EndTime

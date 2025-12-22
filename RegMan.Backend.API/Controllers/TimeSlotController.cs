@@ -9,13 +9,20 @@ namespace RegMan.Backend.API.Controllers
     [ApiController]
     [Route("api/[controller]")]
     [Authorize] // أي request لازم يكون عامل Login
-    public class TimeSlotController : ControllerBase
+    public class TimeSlotController(ITimeSlotService timeSlotService) : ControllerBase
     {
-        private readonly ITimeSlotService timeSlotService;
+        private readonly ITimeSlotService timeSlotService = timeSlotService;
 
-        public TimeSlotController(ITimeSlotService timeSlotService)
+        // =========================
+        // GET BY ROOM
+        // Admin + Instructor + Student
+        // =========================
+        [Authorize(Roles = "Admin,Instructor,Student")]
+        [HttpGet("room/{roomId:int}")]
+        public async Task<IActionResult> GetByRoom(int roomId)
         {
-            this.timeSlotService = timeSlotService;
+            var slots = (await timeSlotService.GetAllTimeSlotsAsync()).Where(s => s.RoomId == roomId);
+            return Ok(ApiResponse<IEnumerable<ViewTimeSlotDTO>>.SuccessResponse(slots));
         }
 
         // =========================
@@ -60,6 +67,35 @@ namespace RegMan.Backend.API.Controllers
             }
 
             return Ok(ApiResponse<string>.SuccessResponse("TimeSlot deleted successfully"));
+        }
+
+        // =========================
+        // UPDATE
+        // Admin only
+        // =========================
+        [Authorize(Roles = "Admin")]
+        [HttpPut("{id:int}")]
+        public async Task<IActionResult> Update(int id, [FromBody] UpdateTimeSlotDTO dto)
+        {
+            if (id != dto.TimeSlotId)
+            {
+                return BadRequest(ApiResponse<string>.FailureResponse(
+                    "ID in URL does not match ID in body.",
+                    StatusCodes.Status400BadRequest
+                ));
+            }
+            try
+            {
+                var updated = await timeSlotService.UpdateTimeSlotAsync(dto);
+                return Ok(ApiResponse<ViewTimeSlotDTO>.SuccessResponse(updated));
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ApiResponse<string>.FailureResponse(
+                    ex.Message,
+                    StatusCodes.Status400BadRequest
+                ));
+            }
         }
     }
 }

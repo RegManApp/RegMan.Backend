@@ -30,5 +30,8 @@ namespace RegMan.Backend.DAL.Entities
 
         // Navigation (used later in Scheduling)
         public ICollection<ScheduleSlot> ScheduleSlots { get; set; } = new List<ScheduleSlot>();
+
+        // Navigation: Room-specific time slots
+        public ICollection<TimeSlot> TimeSlots { get; set; } = new List<TimeSlot>();
     }
 }

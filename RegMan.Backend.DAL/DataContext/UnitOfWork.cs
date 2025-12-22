@@ -5,7 +5,7 @@ using RegMan.Backend.DAL.Repositories;
 
 namespace RegMan.Backend.DAL.DataContext
 {
-    internal class UnitOfWork : IUnitOfWork
+    public class UnitOfWork : IUnitOfWork
     {
         private readonly AppDbContext dbcontext;
         //private readonly UserManager<BaseUser> userManager;

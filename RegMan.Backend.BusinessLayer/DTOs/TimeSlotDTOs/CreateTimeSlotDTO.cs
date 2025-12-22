@@ -5,6 +5,9 @@ namespace RegMan.Backend.BusinessLayer.DTOs.TimeSlotDTOs
     public class CreateTimeSlotDTO
     {
         [Required]
+        public int RoomId { get; set; }
+
+        [Required]
         public DayOfWeek Day { get; set; }
 
         [Required]

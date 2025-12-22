@@ -16,6 +16,11 @@ namespace RegMan.Backend.DAL.Entities
         [Required]
         public TimeSpan EndTime { get; set; }
 
+        // New: Room association
+        [Required]
+        public int RoomId { get; set; }
+        public Room Room { get; set; } = null!;
+
         // Simple validation helper
         public bool IsValid()
         {
