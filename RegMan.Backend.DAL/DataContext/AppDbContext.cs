@@ -44,6 +44,10 @@ namespace RegMan.Backend.DAL.DataContext
         {
             base.OnModelCreating(modelBuilder);
 
+            modelBuilder.Entity<BaseUser>()
+                .Property(u => u.CreatedAt)
+                .HasDefaultValueSql("GETUTCDATE()");
+
             // ============================
             // 1. ONE-TO-ONE RELATIONSHIPS
             // ============================
