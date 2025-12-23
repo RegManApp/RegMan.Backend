@@ -477,7 +477,8 @@ namespace RegMan.Backend.API.Controllers
                     u.Email,
                     u.FullName,
                     u.Role,
-                    u.Address
+                    u.Address,
+                    u.CreatedAt
                 })
                 .ToListAsync();
 
@@ -510,7 +511,8 @@ namespace RegMan.Backend.API.Controllers
                 user.Email,
                 user.FullName,
                 user.Role,
-                user.Address
+                user.Address,
+                user.CreatedAt
             }));
         }
 
