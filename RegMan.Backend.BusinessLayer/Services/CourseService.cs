@@ -144,19 +144,21 @@ namespace RegMan.Backend.BusinessLayer.Services
                 query = query.Where(c => (c.CourseCode ?? string.Empty).Contains(courseCode));
 
             if (courseCategoryId.HasValue)
-                query = query.Where(c => (int)c.CourseCategory == courseCategoryId.Value);
+                query = query.Where(c => c.CourseCategory == (CourseCategory)courseCategoryId.Value);
 
-            return await query
-                .Select(c => new ViewCourseSummaryDTO
-                {
-                    CourseId = c.CourseId,
-                    CourseName = c.CourseName,
-                    CreditHours = c.CreditHours,
-                    CourseCode = c.CourseCode,
-                    CourseCategoryId = (int)c.CourseCategory,
-                    Description = c.Description
-                })
+            var courses = await query
+                .OrderBy(c => c.CourseName)
                 .ToListAsync();
+
+            return courses.Select(c => new ViewCourseSummaryDTO
+            {
+                CourseId = c.CourseId,
+                CourseName = c.CourseName,
+                CreditHours = c.CreditHours,
+                CourseCode = c.CourseCode,
+                CourseCategoryId = (int)c.CourseCategory,
+                Description = c.Description
+            }).ToList();
         }
 
         // =========================
@@ -194,24 +196,25 @@ namespace RegMan.Backend.BusinessLayer.Services
                 query = query.Where(c => (c.CourseCode ?? string.Empty).Contains(courseCode));
 
             if (courseCategoryId.HasValue)
-                query = query.Where(c => (int)c.CourseCategory == courseCategoryId.Value);
+                query = query.Where(c => c.CourseCategory == (CourseCategory)courseCategoryId.Value);
 
             var totalItems = await query.CountAsync();
 
-            var items = await query
+            var entities = await query
                 .OrderBy(c => c.CourseName)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
-                .Select(c => new ViewCourseSummaryDTO
-                {
-                    CourseId = c.CourseId,
-                    CourseName = c.CourseName,
-                    CreditHours = c.CreditHours,
-                    CourseCode = c.CourseCode,
-                    CourseCategoryId = (int)c.CourseCategory,
-                    Description = c.Description
-                })
                 .ToListAsync();
+
+            var items = entities.Select(c => new ViewCourseSummaryDTO
+            {
+                CourseId = c.CourseId,
+                CourseName = c.CourseName,
+                CreditHours = c.CreditHours,
+                CourseCode = c.CourseCode,
+                CourseCategoryId = (int)c.CourseCategory,
+                Description = c.Description
+            }).ToList();
 
             return new PaginatedResponse<ViewCourseSummaryDTO>(items, totalItems, page, pageSize);
         }
@@ -221,26 +224,20 @@ namespace RegMan.Backend.BusinessLayer.Services
         // =========================
         public async Task<ViewCourseSummaryDTO> GetCourseSummaryByIdAsync(int id)
         {
-            Expression<Func<Course, bool>> filter = c => c.CourseId == id;
+            var course = await unitOfWork.Courses.GetByIdAsync(id);
 
-            Expression<Func<Course, ViewCourseSummaryDTO>> projection = c =>
-                new ViewCourseSummaryDTO
-                {
-                    CourseId = c.CourseId,
-                    CourseName = c.CourseName,
-                    CreditHours = c.CreditHours,
-                    CourseCode = c.CourseCode,
-                    CourseCategoryId = (int)c.CourseCategory,
-                    Description = c.Description
-                };
-
-            var query = courseRepository.GetFilteredAndProjected(filter, projection);
-            var result = await query.SingleOrDefaultAsync();
-
-            if (result == null)
+            if (course == null)
                 throw new NotFoundException($"Course with ID: {id} not found.");
 
-            return result;
+            return new ViewCourseSummaryDTO
+            {
+                CourseId = course.CourseId,
+                CourseName = course.CourseName,
+                CreditHours = course.CreditHours,
+                CourseCode = course.CourseCode,
+                CourseCategoryId = (int)course.CourseCategory,
+                Description = course.Description
+            };
         }
 
         // =========================
