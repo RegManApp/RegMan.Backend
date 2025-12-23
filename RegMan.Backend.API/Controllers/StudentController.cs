@@ -21,10 +21,11 @@ namespace RegMan.Backend.API.Controllers
         }
         private string GetStudentID()
         {
-            var studentId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(studentId))
-                throw new InvalidOperationException("User ID claim (NameIdentifier) is missing from the authorized token.");
-            return studentId;
+            return User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")
+                ?? User.FindFirstValue("userId")
+                ?? User.FindFirstValue("id")
+                ?? string.Empty;
         }
         [Authorize(Roles = "Admin")]
         [HttpPost]
@@ -43,6 +44,8 @@ namespace RegMan.Backend.API.Controllers
         public async Task<IActionResult> GetMyStudentProfileAsync()
         {
             string studentId = GetStudentID();
+            if (string.IsNullOrWhiteSpace(studentId))
+                return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized", StatusCodes.Status401Unauthorized));
             var result = await studentProfileService.GetProfileByIdAsync(studentId);
             return Ok(ApiResponse<ViewStudentProfileDTO>.SuccessResponse(result));
         }
