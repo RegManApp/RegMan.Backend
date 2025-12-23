@@ -135,13 +135,13 @@ namespace RegMan.Backend.BusinessLayer.Services
             var query = unitOfWork.Courses.GetAllAsQueryable();
 
             if (!string.IsNullOrWhiteSpace(courseName))
-                query = query.Where(c => c.CourseName.Contains(courseName));
+                query = query.Where(c => (c.CourseName ?? string.Empty).Contains(courseName));
 
             if (creditHours.HasValue)
                 query = query.Where(c => c.CreditHours == creditHours.Value);
 
             if (!string.IsNullOrWhiteSpace(courseCode))
-                query = query.Where(c => c.CourseCode.Contains(courseCode));
+                query = query.Where(c => (c.CourseCode ?? string.Empty).Contains(courseCode));
 
             if (courseCategoryId.HasValue)
                 query = query.Where(c => (int)c.CourseCategory == courseCategoryId.Value);
@@ -178,20 +178,20 @@ namespace RegMan.Backend.BusinessLayer.Services
             {
                 var searchLower = search.ToLower();
                 query = query.Where(c =>
-                    c.CourseName.ToLower().Contains(searchLower) ||
-                    c.CourseCode.ToLower().Contains(searchLower) ||
-                    (c.Description != null && c.Description.ToLower().Contains(searchLower)));
+                    (c.CourseName ?? string.Empty).ToLower().Contains(searchLower) ||
+                    (c.CourseCode ?? string.Empty).ToLower().Contains(searchLower) ||
+                    (c.Description ?? string.Empty).ToLower().Contains(searchLower));
             }
 
             // Specific filters
             if (!string.IsNullOrWhiteSpace(courseName))
-                query = query.Where(c => c.CourseName.Contains(courseName));
+                query = query.Where(c => (c.CourseName ?? string.Empty).Contains(courseName));
 
             if (creditHours.HasValue)
                 query = query.Where(c => c.CreditHours == creditHours.Value);
 
             if (!string.IsNullOrWhiteSpace(courseCode))
-                query = query.Where(c => c.CourseCode.Contains(courseCode));
+                query = query.Where(c => (c.CourseCode ?? string.Empty).Contains(courseCode));
 
             if (courseCategoryId.HasValue)
                 query = query.Where(c => (int)c.CourseCategory == courseCategoryId.Value);
