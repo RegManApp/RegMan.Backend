@@ -135,7 +135,10 @@ internal class EnrollmentService : IEnrollmentService
         var student = await unitOfWork.StudentProfiles
             .GetAllAsQueryable()
             .FirstOrDefaultAsync(s => s.UserId == studentUserId)
-            ?? throw new Exception("Student not found");
+            ;
+
+        if (student == null)
+            return Array.Empty<ViewEnrollmentDTO>();
 
         var enrollments = await unitOfWork.Enrollments
             .GetAllAsQueryable()
