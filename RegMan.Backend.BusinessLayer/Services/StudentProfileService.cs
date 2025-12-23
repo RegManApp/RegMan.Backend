@@ -201,11 +201,12 @@ namespace RegMan.Backend.BusinessLayer.Services
             BaseUser? user = await userManager.FindByEmailAsync(passwordDTO.Email);
             if (user is null)
                 throw new Exception($"A student with the email {passwordDTO.Email} does not exist!");
-            bool validPassword = await userManager.CheckPasswordAsync(user, passwordDTO.OldPassword);
-            if (!validPassword)
-                throw new Exception($"Invalid credentials.");
-            //no errors anymore
-            user.PasswordHash = passwordDTO.NewPassword;
+            var result = await userManager.ChangePasswordAsync(user, passwordDTO.OldPassword, passwordDTO.NewPassword);
+            if (!result.Succeeded)
+            {
+                var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                throw new Exception(string.IsNullOrWhiteSpace(errors) ? "Password change failed." : errors);
+            }
 
         }
 
