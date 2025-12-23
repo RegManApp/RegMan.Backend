@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using RegMan.Backend.API.Common;
@@ -238,6 +239,9 @@ namespace RegMan.Backend.API
                 var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
                 var userManager = scope.ServiceProvider.GetRequiredService<UserManager<BaseUser>>();
                 var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                // Keep production schema in sync with code (prevents runtime 500s from missing tables/columns)
+                await dbContext.Database.MigrateAsync();
 
                 await RoleSeeder.SeedRolesAsync(roleManager);
                 await UserSeeder.SeedAdminAsync(userManager);
