@@ -154,6 +154,10 @@ namespace RegMan.Backend.BusinessLayer.Services
                         .ThenInclude(i => i.User)
                 .AsQueryable();
 
+            // Guard against inconsistent data (orphaned sections). Keeping the list endpoint resilient
+            // prevents admin forms from failing to load due to a single bad row.
+            query = query.Where(s => s.Course != null);
+
             if (!string.IsNullOrEmpty(semester))
                 query = query.Where(s => s.Semester == semester);
 
@@ -195,18 +199,24 @@ namespace RegMan.Backend.BusinessLayer.Services
                     {
                         ScheduleSlotId = slot.ScheduleSlotId,
                         SectionId = slot.SectionId,
-                        SectionName = s.Course.CourseName + " - Section " + s.SectionId,
+                        SectionName = (s.Course.CourseName ?? string.Empty) + " - Section " + s.SectionId,
 
                         RoomId = slot.RoomId,
-                        Room = slot.Room.Building + " - " + slot.Room.RoomNumber,
+                        Room = slot.Room != null
+                            ? (slot.Room.Building + " - " + slot.Room.RoomNumber)
+                            : string.Empty,
 
                         TimeSlotId = slot.TimeSlotId,
-                        TimeSlot = slot.TimeSlot.Day.ToString() + " " +
-                                   slot.TimeSlot.StartTime.ToString(@"hh\:mm") + "-" +
-                                   slot.TimeSlot.EndTime.ToString(@"hh\:mm"),
+                        TimeSlot = slot.TimeSlot != null
+                            ? (slot.TimeSlot.Day.ToString() + " " +
+                               slot.TimeSlot.StartTime.ToString(@"hh\:mm") + "-" +
+                               slot.TimeSlot.EndTime.ToString(@"hh\:mm"))
+                            : string.Empty,
 
                         InstructorId = slot.InstructorId,
-                        InstructorName = slot.Instructor.User.FullName,
+                        InstructorName = slot.Instructor != null
+                            ? slot.Instructor.User.FullName
+                            : string.Empty,
                         SlotType = slot.SlotType.ToString()
                     }).ToList()
                 })
