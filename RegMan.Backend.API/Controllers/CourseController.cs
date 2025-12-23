@@ -50,6 +50,10 @@ namespace RegMan.Backend.API.Controllers
             [FromQuery] string? courseCode = null,
             [FromQuery] int? courseCategoryId = null)
         {
+            // Defensive defaults to avoid 500s on invalid query params
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 12;
+
             var courses = await courseService.GetAllCoursesPaginatedAsync(
                 page,
                 pageSize,
