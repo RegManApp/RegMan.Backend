@@ -1,15 +1,9 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.VisualBasic;
 using StudentManagementSystem.BusinessLayer.Contracts;
 using StudentManagementSystem.BusinessLayer.DTOs.ChattingDTO;
 using StudentManagementSystem.DAL.Contracts;
 using StudentManagementSystem.DAL.Entities;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace StudentManagementSystem.BusinessLayer.Services
 {
@@ -58,14 +52,30 @@ namespace StudentManagementSystem.BusinessLayer.Services
             return conversation;
         }
         //send a message to a user
-        public async Task<ViewConversationDTO> SendMessageAsync(string senderId, string recieverId, string textMessage)
+        public async Task<ViewConversationDTO> SendMessageAsync(string senderId, string? recieverId, int? conversationId,string textMessage)
         {
-
-            if(string.IsNullOrWhiteSpace(textMessage))
+            if (string.IsNullOrWhiteSpace(textMessage))
                 throw new ArgumentException("Message text cannot be empty.", nameof(textMessage));
-            Conversation? conversation = await convoRepository.GetConversationByParticipantsAsync(senderId, recieverId);
-            if (conversation is null) 
+            Conversation? conversation = null;
+            if (conversationId.HasValue) //existing convo or group chat
+            {
+                conversation = await convoRepository.GetByIdAsync(conversationId.Value);
+                if (conversation is null)
+                    throw new KeyNotFoundException("Conversation not found.");
+                var participants = await convoRepository.GetConversationParticipantsAsync(conversationId.Value);
+                if (!participants.Any(p => p.UserId == senderId))
+                    throw new UnauthorizedAccessException("Sender is not a participant of the conversation.");
+            }
+            else if(!string.IsNullOrEmpty(recieverId))//convo is null, but receiver ID provided (1 to 1 new chat)
+            {
                 conversation = await CreateConversationAsync(new List<string> { senderId, recieverId });
+            }
+            else if (string.IsNullOrWhiteSpace(recieverId))
+                throw new ArgumentException("Receiver ID must be provided when conversation ID is not specified.", nameof(recieverId));
+
+            //Conversation? conversation = await convoRepository.GetConversationByParticipantsAsync(senderId, recieverId);
+            //if (conversation is null) 
+            //    conversation = await CreateConversationAsync(new List<string> { senderId, recieverId });
             var message = new Message
             {
                 SenderId = senderId,
@@ -76,7 +86,7 @@ namespace StudentManagementSystem.BusinessLayer.Services
             };
             await messageRepository.AddAsync(message);
             await unitOfWork.SaveChangesAsync();
-            return await ViewConversationAsync( senderId, conversation.ConversationId, 1 , 20);
+            return await ViewConversationAsync(senderId, conversation.ConversationId, 1, 20);
         }
        
         //View all user conversations
@@ -169,6 +179,14 @@ namespace StudentManagementSystem.BusinessLayer.Services
                 DisplayName = displayName,
                 ValidationMessage = validationMessage ?? null
             };
+        }
+        public async Task<List<int>> GetUserConversationIds(string userId)
+        {
+            var conversationIds = await participantRepository.GetAllAsQueryable()
+                .Where(cp => cp.UserId == userId)
+                .Select(cp => cp.ConversationId)
+                .ToListAsync();
+            return conversationIds;
         }
 
     }

@@ -59,12 +59,12 @@ namespace StudentManagementSystem.API.Controllers
             var result = await studentProfileService.UpdateProfileAdminAsync(studentProfileDTO);
             return Ok(ApiResponse<ViewStudentProfileDTO>.SuccessResponse(result));
         }  
-        [Authorize(Roles = "Student")]
-        [HttpPut]
-        public async Task<IActionResult> ChangeStudentPassword(ChangePasswordDTO passwordDTO) 
-        {
-            await studentProfileService.ChangeStudentPassword(passwordDTO);
-            return Ok(ApiResponse<string>.SuccessResponse("Password changed successfully!"));
-        }  
+        //[Authorize(Roles = "Student")]
+        //[HttpPut]
+        //public async Task<IActionResult> ChangeStudentPassword(ChangePasswordDTO passwordDTO) 
+        //{
+        //    await studentProfileService.ChangeStudentPassword(passwordDTO);
+        //    return Ok(ApiResponse<string>.SuccessResponse("Password changed successfully!"));
+        //}  
     }
 }

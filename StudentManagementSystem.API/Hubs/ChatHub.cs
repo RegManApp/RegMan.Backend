@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using Azure.Messaging;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using StudentManagementSystem.BusinessLayer.Contracts;
 using StudentManagementSystem.BusinessLayer.DTOs.ChattingDTO;
@@ -16,9 +17,18 @@ namespace StudentManagementSystem.API.Hubs
         }
         public override async Task OnConnectedAsync()
         {
+
             try
             {
                 var userId = Context.UserIdentifier;
+                // get all conversation IDs this user belongs to
+                var userConvos = await chatService.GetUserConversationIds(userId);
+
+                foreach (var id in userConvos)
+                {
+                    await Groups.AddToGroupAsync(Context.ConnectionId, id.ToString());
+                }
+                await base.OnConnectedAsync();
                 if (userId == null)
                 {
                     throw new Exception("UserIdentifier is null");
@@ -33,23 +43,28 @@ namespace StudentManagementSystem.API.Hubs
             await base.OnConnectedAsync();
         }
 
-        public async Task<ViewConversationDTO> SendMessage(
-         string receiverId,
+        public async Task<ViewConversationDTO> SendMessageAsync(
+         string? receiverId,
+         int? conversationId,
          string textMessage)
         {
             var senderId = Context.UserIdentifier!;
             var conversation = await chatService.SendMessageAsync(
                 senderId,
                 receiverId,
+                conversationId,
                 textMessage
             );
-
+            string conversationIdStr = conversation.ConversationId.ToString();
             //push message to receiver (real-time)
             var lastMessage = conversation.Messages.Last();
-
-            await Clients.User(receiverId)
-                .SendAsync("ReceiveMessage", lastMessage);
-
+            await Clients.Group(conversationIdStr).SendAsync("ReceiveMessage", lastMessage);
+            if (conversationId == null && !string.IsNullOrEmpty(receiverId)) // in case it is a new convo
+            {
+                await Clients.User(receiverId).SendAsync("JoinedNewConversation", conversationIdStr);
+                // Also send the message directly since they aren't in the group yet
+                await Clients.User(receiverId).SendAsync("ReceiveMessage", lastMessage);
+            }
             //return full conversation to sender
             return conversation;
         }
