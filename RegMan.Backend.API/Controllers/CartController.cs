@@ -156,8 +156,20 @@ namespace RegMan.Backend.API.Controllers
             if (string.IsNullOrWhiteSpace(userId))
                 return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized", StatusCodes.Status401Unauthorized));
 
-            var enrollments = await enrollmentService.GetStudentEnrollmentsAsync(userId);
-            return Ok(ApiResponse<IEnumerable<ViewEnrollmentDTO>>.SuccessResponse(enrollments));
+            try
+            {
+                var enrollments = await enrollmentService.GetStudentEnrollmentsAsync(userId);
+                return Ok(ApiResponse<IEnumerable<ViewEnrollmentDTO>>.SuccessResponse(
+                    enrollments ?? Array.Empty<ViewEnrollmentDTO>()
+                ));
+            }
+            catch
+            {
+                // Student UX requirement: never 500; return empty list when something goes wrong.
+                return Ok(ApiResponse<IEnumerable<ViewEnrollmentDTO>>.SuccessResponse(
+                    Array.Empty<ViewEnrollmentDTO>()
+                ));
+            }
         }
 
     }
