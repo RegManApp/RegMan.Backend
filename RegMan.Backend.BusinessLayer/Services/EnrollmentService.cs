@@ -134,6 +134,7 @@ internal class EnrollmentService : IEnrollmentService
     {
         var student = await unitOfWork.StudentProfiles
             .GetAllAsQueryable()
+            .AsNoTracking()
             .FirstOrDefaultAsync(s => s.UserId == studentUserId)
             ;
 
@@ -142,35 +143,36 @@ internal class EnrollmentService : IEnrollmentService
 
         var enrollments = await unitOfWork.Enrollments
             .GetAllAsQueryable()
+            .AsNoTracking()
             .Include(e => e.Section)
                 .ThenInclude(s => s.Course)
             .Include(e => e.Section)
                 .ThenInclude(s => s.Instructor)
                     .ThenInclude(i => i.User)
             .Where(e => e.StudentId == student.StudentId)
-            .Select(e => new ViewEnrollmentDTO
-            {
-                EnrollmentId = e.EnrollmentId,
-                SectionId = e.SectionId,
-                StudentId = e.StudentId,
-                EnrolledAt = e.EnrolledAt,
-                Grade = e.Grade,
-                Status = (int)e.Status,
-                CourseId = e.Section != null && e.Section.Course != null ? e.Section.Course.CourseId : 0,
-                CourseName = e.Section != null && e.Section.Course != null ? e.Section.Course.CourseName : null,
-                CourseCode = e.Section != null && e.Section.Course != null ? e.Section.Course.CourseCode : null,
-                CreditHours = e.Section != null && e.Section.Course != null ? e.Section.Course.CreditHours : 0,
-                SectionName = e.Section != null ? e.Section.SectionName : null,
-                Semester = e.Section != null ? e.Section.Semester : null,
-                InstructorName = e.Section != null && e.Section.Instructor != null && e.Section.Instructor.User != null
-                    ? e.Section.Instructor.User.FullName
-                    : null,
-                DeclineReason = e.DeclineReason,
-                ApprovedBy = e.ApprovedBy,
-                ApprovedAt = e.ApprovedAt
-            })
             .ToListAsync();
 
-        return enrollments;
+        if (enrollments.Count == 0)
+            return Array.Empty<ViewEnrollmentDTO>();
+
+        return enrollments.Select(e => new ViewEnrollmentDTO
+        {
+            EnrollmentId = e.EnrollmentId,
+            SectionId = e.SectionId,
+            StudentId = e.StudentId,
+            EnrolledAt = e.EnrolledAt,
+            Grade = e.Grade,
+            Status = (int)e.Status,
+            CourseId = e.Section?.Course?.CourseId ?? 0,
+            CourseName = e.Section?.Course?.CourseName,
+            CourseCode = e.Section?.Course?.CourseCode,
+            CreditHours = e.Section?.Course?.CreditHours ?? 0,
+            SectionName = e.Section?.SectionName,
+            Semester = e.Section?.Semester,
+            InstructorName = e.Section?.Instructor?.User?.FullName,
+            DeclineReason = e.DeclineReason,
+            ApprovedBy = e.ApprovedBy,
+            ApprovedAt = e.ApprovedAt
+        }).ToList();
     }
 }
