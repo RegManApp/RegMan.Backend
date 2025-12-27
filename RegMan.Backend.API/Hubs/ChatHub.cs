@@ -18,6 +18,7 @@ namespace RegMan.Backend.API.Hubs
             this.chatService = chatService;
             this.notificationService = notificationService;
         }
+
         public override async Task OnConnectedAsync()
         {
             try
@@ -27,6 +28,15 @@ namespace RegMan.Backend.API.Hubs
                 {
                     throw new Exception("UserIdentifier is null");
                 }
+
+                // get all conversation IDs this user belongs to
+                var userConvos = await chatService.GetUserConversationIds(userId);
+
+                foreach (var id in userConvos)
+                {
+                    await Groups.AddToGroupAsync(Context.ConnectionId, id.ToString());
+                }
+
                 Console.WriteLine($"Connected: {userId}");
             }
             catch (Exception ex)
@@ -34,47 +44,59 @@ namespace RegMan.Backend.API.Hubs
                 Console.WriteLine($"Error in OnConnectedAsync: {ex.Message}");
                 throw;
             }
+
             await base.OnConnectedAsync();
         }
 
-        public async Task<ViewConversationDTO> SendMessage(
-         string receiverId,
-         string textMessage)
+        public async Task<ViewConversationDTO> SendMessageAsync(
+            string? receiverId,
+            int? conversationId,
+            string textMessage)
         {
             var senderId = Context.UserIdentifier!;
             var conversation = await chatService.SendMessageAsync(
                 senderId,
                 receiverId,
+                conversationId,
                 textMessage
             );
 
-            //push message to receiver (real-time)
+            string conversationIdStr = conversation.ConversationId.ToString();
             var lastMessage = conversation.Messages.Last();
 
-            await Clients.User(receiverId)
-                .SendAsync("ReceiveMessage", lastMessage);
+            // Send message to all in the group
+            await Clients.Group(conversationIdStr).SendAsync("ReceiveMessage", lastMessage);
 
-            // Also create a notification for the receiver (demo-critical)
-            await notificationService.CreateNotificationAsync(
-                userId: receiverId,
-                type: NotificationType.General,
-                title: "New message",
-                message: $"New message from {lastMessage.SenderName}: {lastMessage.Content}",
-                entityType: "Conversation",
-                entityId: conversation.ConversationId
-            );
+            // If new conversation, notify the receiver
+            if (conversationId == null && !string.IsNullOrEmpty(receiverId))
+            {
+                await Clients.User(receiverId).SendAsync("JoinedNewConversation", conversationIdStr);
+                await Clients.User(receiverId).SendAsync("ReceiveMessage", lastMessage);
+            }
 
-            //return full conversation to sender
+            // Also create a notification for the receiver
+            if (!string.IsNullOrEmpty(receiverId))
+            {
+                await notificationService.CreateNotificationAsync(
+                    userId: receiverId,
+                    type: NotificationType.General,
+                    title: "New message",
+                    message: $"New message from {lastMessage.SenderName}: {lastMessage.Content}",
+                    entityType: "Conversation",
+                    entityId: conversation.ConversationId
+                );
+            }
+
             return conversation;
         }
-        // get the specific conversation
+
         public async Task<ViewConversationDTO> ViewConversation(int conversationId, int pageNumber, int pageSize = 20)
         {
             var userId = Context.UserIdentifier!;
             var conversation = await chatService.ViewConversationAsync(userId, conversationId, pageNumber, pageSize);
             return conversation;
         }
-        //get all conversations (chats) for the user
+
         public async Task<ViewConversationsDTO> GetAllConversations()
         {
             var userId = Context.UserIdentifier!;
