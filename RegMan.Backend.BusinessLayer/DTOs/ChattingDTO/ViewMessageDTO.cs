@@ -16,5 +16,7 @@ namespace RegMan.Backend.BusinessLayer.DTOs.ChattingDTO
         public string Content { get; set; } = string.Empty;
         public DateTime Timestamp { get; set; }
         public MsgStatus Status { get; set; }
+        public bool IsRead { get; set; }
+        public DateTime? ReadAt { get; set; }
     }
 }

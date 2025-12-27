@@ -10,36 +10,46 @@ using System.Threading.Tasks;
 
 namespace RegMan.Backend.DAL.Repositories
 {
-    internal class ConversationRepository: BaseRepository<Conversation>,IConversationRepository
+    internal class ConversationRepository : BaseRepository<Conversation>, IConversationRepository
     {
         private readonly AppDbContext dbContext;
         private DbSet<Conversation> dbSet;
-        public ConversationRepository(AppDbContext dbContext):base(dbContext)
+        public ConversationRepository(AppDbContext dbContext) : base(dbContext)
         {
             this.dbContext = dbContext;
             this.dbSet = dbContext.Set<Conversation>();
         }
-        public async Task<IEnumerable<ConversationParticipant>> GetConversationParticipantsAsync(int conversationId) 
+        public async Task<IEnumerable<ConversationParticipant>> GetConversationParticipantsAsync(int conversationId)
         {
             var participants = await dbContext.ConversationParticipants
                 .Where(cp => cp.ConversationId == conversationId)
-                .Select(p=>new ConversationParticipant {
-                    Conversation=p.Conversation,
-                    ConversationId=p.ConversationId,
-                    User=p.User,
-                    UserId=p.UserId
+                .Select(p => new ConversationParticipant
+                {
+                    Conversation = p.Conversation,
+                    ConversationId = p.ConversationId,
+                    User = p.User,
+                    UserId = p.UserId
                 })
                 .ToListAsync();
             return participants;
         }
         public async Task<Conversation?> GetConversationByParticipantsAsync(string firstUserId, string secondUserId)
         {
+            if (string.IsNullOrWhiteSpace(firstUserId) || string.IsNullOrWhiteSpace(secondUserId))
+                return null;
+
+            if (firstUserId == secondUserId)
+                return null;
+
+            // Match ONLY direct conversations with exactly 2 participants total.
             var conversation = await dbContext.ConversationParticipants
-                .Where(cp => (cp.UserId == firstUserId || cp.UserId == secondUserId))
                 .GroupBy(cp => cp.ConversationId)
-                .Where(g => g.Count() == 2)
+                .Where(g => g.Count() == 2
+                    && g.Any(cp => cp.UserId == firstUserId)
+                    && g.Any(cp => cp.UserId == secondUserId))
                 .Select(g => g.First().Conversation)
                 .FirstOrDefaultAsync();
+
             return conversation;
         }
         public async Task<IEnumerable<Conversation>>? GetConversationsByUserIdAsync(string userId)

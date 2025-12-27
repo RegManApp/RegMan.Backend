@@ -1,7 +1,10 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using RegMan.Backend.API.Common;
+using RegMan.Backend.API.DTOs.Chat;
+using RegMan.Backend.API.Hubs;
 using RegMan.Backend.BusinessLayer.Contracts;
 using RegMan.Backend.BusinessLayer.DTOs.ChattingDTO;
 using System.Security.Claims;
@@ -14,10 +17,12 @@ namespace RegMan.Backend.API.Controllers
     public class ChatController : ControllerBase
     {
         private readonly IChatService chatService;
+        private readonly IHubContext<ChatHub> chatHub;
 
-        public ChatController(IChatService chatService)
+        public ChatController(IChatService chatService, IHubContext<ChatHub> chatHub)
         {
             this.chatService = chatService;
+            this.chatHub = chatHub;
         }
 
         private string GetUserId()
@@ -40,6 +45,39 @@ namespace RegMan.Backend.API.Controllers
             return Ok(ApiResponse<ViewConversationsDTO>.SuccessResponse(conversations));
         }
 
+        [HttpGet("users/search")]
+        public async Task<IActionResult> SearchUsersAsync([FromQuery] SearchUsersRequest request)
+        {
+            var userId = GetUserId();
+            if (string.IsNullOrWhiteSpace(userId))
+                return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized", StatusCodes.Status401Unauthorized));
+
+            var results = await chatService.SearchUsersAsync(userId, request.Query, request.Limit);
+            return Ok(ApiResponse<List<ChatUserSearchResultDTO>>.SuccessResponse(results));
+        }
+
+        [HttpPost("conversations/direct")]
+        public async Task<IActionResult> GetOrCreateDirectConversationAsync([FromBody] GetOrCreateDirectConversationRequest request)
+        {
+            var userId = GetUserId();
+            if (string.IsNullOrWhiteSpace(userId))
+                return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized", StatusCodes.Status401Unauthorized));
+
+            var conversation = await chatService.GetOrCreateDirectConversationAsync(
+                userId,
+                request.OtherUserId,
+                request.Page,
+                request.PageSize
+            );
+
+            // Notify the other participant (if online) to join the new/existing conversation group.
+            // This avoids requiring a refresh when a new chat is started.
+            await chatHub.Clients.User(request.OtherUserId)
+                .SendAsync("ConversationCreated", conversation.ConversationId);
+
+            return Ok(ApiResponse<ViewConversationDTO>.SuccessResponse(conversation));
+        }
+
         [HttpGet("{conversationId:int}")]
         public async Task<IActionResult> GetConversationByIdAsync(
             int conversationId,
@@ -52,6 +90,27 @@ namespace RegMan.Backend.API.Controllers
 
             var conversation = await chatService.ViewConversationAsync(userId, conversationId, page, pageSize);
             return Ok(ApiResponse<ViewConversationDTO>.SuccessResponse(conversation));
+        }
+
+        [HttpPost("conversations/{conversationId:int}/read")]
+        public async Task<IActionResult> MarkConversationReadAsync(int conversationId)
+        {
+            var userId = GetUserId();
+            if (string.IsNullOrWhiteSpace(userId))
+                return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized", StatusCodes.Status401Unauthorized));
+
+            var receipts = await chatService.MarkConversationMessagesReadAsync(userId, conversationId);
+
+            // Notify each sender of their messages being read.
+            foreach (var receipt in receipts)
+            {
+                if (!string.IsNullOrWhiteSpace(receipt.SenderId))
+                {
+                    await chatHub.Clients.User(receipt.SenderId).SendAsync("MessageRead", receipt);
+                }
+            }
+
+            return Ok(ApiResponse<object>.SuccessResponse(new { count = receipts.Sum(r => r.MessageIds.Count) }));
         }
 
         [HttpPost]
