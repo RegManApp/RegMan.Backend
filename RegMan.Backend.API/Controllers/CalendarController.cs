@@ -141,6 +141,63 @@ namespace RegMan.Backend.API.Controllers
                 var start = startDate ?? fromDate ?? DateTime.UtcNow.Date.AddMonths(-1);
                 var end = endDate ?? toDate ?? DateTime.UtcNow.Date.AddMonths(3);
 
+                // Global academic timeline events (no hard-coded strings; frontend localizes via titleKey)
+                var settings = await _context.AcademicCalendarSettings
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(s => s.SettingsKey == "default");
+
+                if (settings?.RegistrationStartDateUtc != null)
+                {
+                    var d = settings.RegistrationStartDateUtc.Value.Date;
+                    events.Add(new
+                    {
+                        id = "academic-registration-start",
+                        titleKey = "calendar.special.registrationStarts",
+                        start = d,
+                        end = d,
+                        type = "registration"
+                    });
+                }
+
+                if (settings?.RegistrationEndDateUtc != null)
+                {
+                    var d = settings.RegistrationEndDateUtc.Value.Date;
+                    events.Add(new
+                    {
+                        id = "academic-registration-end",
+                        titleKey = "calendar.special.registrationEnds",
+                        start = d,
+                        end = d,
+                        type = "registration"
+                    });
+                }
+
+                if (settings?.WithdrawStartDateUtc != null)
+                {
+                    var d = settings.WithdrawStartDateUtc.Value.Date;
+                    events.Add(new
+                    {
+                        id = "academic-withdraw-start",
+                        titleKey = "calendar.special.withdrawStarts",
+                        start = d,
+                        end = d,
+                        type = "withdraw"
+                    });
+                }
+
+                if (settings?.WithdrawEndDateUtc != null)
+                {
+                    var d = settings.WithdrawEndDateUtc.Value.Date;
+                    events.Add(new
+                    {
+                        id = "academic-withdraw-end",
+                        titleKey = "calendar.special.withdrawEnds",
+                        start = d,
+                        end = d,
+                        type = "withdraw"
+                    });
+                }
+
                 if (userRole == "Student")
                 {
                     var student = await _context.Students
@@ -335,92 +392,7 @@ namespace RegMan.Backend.API.Controllers
                 }
                 else if (userRole == "Admin")
                 {
-                    // Admin can see all office hours
-                    var officeHours = await _context.OfficeHours
-                        .Include(oh => oh.Instructor)
-                            .ThenInclude(i => i.User)
-                        .Include(oh => oh.Room)
-                        .Include(oh => oh.Bookings)
-                            .ThenInclude(b => b.Student)
-                                .ThenInclude(s => s.User)
-                        .Where(oh => oh.Date >= start &&
-                                    oh.Date <= end &&
-                                    oh.Status != OfficeHourStatus.Cancelled)
-                        .ToListAsync();
-
-                    foreach (var oh in officeHours)
-                    {
-                        if (oh.Instructor?.User == null) continue;
-
-                        var activeBooking = oh.Bookings?.FirstOrDefault(b =>
-                            b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed);
-
-                        var studentName = activeBooking?.Student?.User?.FullName;
-
-                        events.Add(new
-                        {
-                            id = $"office-hour-{oh.OfficeHourId}",
-                            title = $"{oh.Instructor.User.FullName}: " + (studentName != null
-                                ? $"with {studentName}"
-                                : "Available"),
-                            start = oh.Date.Date.Add(oh.StartTime),
-                            end = oh.Date.Date.Add(oh.EndTime),
-                            type = "office-hour",
-                            status = oh.Status.ToString(),
-                            color = oh.Status == OfficeHourStatus.Booked ? "#22c55e" : "#94a3b8",
-                            extendedProps = new
-                            {
-                                officeHourId = oh.OfficeHourId,
-                                instructorName = oh.Instructor.User.FullName,
-                                room = oh.Room != null ? $"{oh.Room.RoomNumber} ({oh.Room.Building})" : "TBD",
-                                booking = studentName != null ? new
-                                {
-                                    studentName,
-                                    purpose = activeBooking?.Purpose
-                                } : null
-                            }
-                        });
-                    }
-
-                    // Admin can also see all scheduled classes
-                    var scheduleSlots = await _context.ScheduleSlots
-                        .Include(ss => ss.Section)
-                            .ThenInclude(s => s.Course)
-                        .Include(ss => ss.TimeSlot)
-                        .Include(ss => ss.Room)
-                        .Include(ss => ss.Instructor)
-                            .ThenInclude(i => i!.User)
-                        .ToListAsync();
-
-                    foreach (var slot in scheduleSlots)
-                    {
-                        if (slot.TimeSlot == null || slot.Section?.Course == null) continue;
-
-                        var currentDate = start;
-                        while (currentDate <= end)
-                        {
-                            if (currentDate.DayOfWeek == slot.TimeSlot.Day)
-                            {
-                                events.Add(new
-                                {
-                                    id = $"class-{slot.ScheduleSlotId}-{currentDate:yyyyMMdd}",
-                                    title = $"{slot.Section.Course.CourseName} ({slot.Section.SectionName})",
-                                    start = currentDate.Date.Add(slot.TimeSlot.StartTime),
-                                    end = currentDate.Date.Add(slot.TimeSlot.EndTime),
-                                    type = "class",
-                                    color = "#3b82f6",
-                                    extendedProps = new
-                                    {
-                                        courseCode = slot.Section.Course.CourseCode,
-                                        sectionName = slot.Section.SectionName,
-                                        instructorName = slot.Instructor?.User?.FullName ?? "TBD",
-                                        room = slot.Room != null ? $"{slot.Room.RoomNumber} ({slot.Room.Building})" : "TBD"
-                                    }
-                                });
-                            }
-                            currentDate = currentDate.AddDays(1);
-                        }
-                    }
+                    // Admin view: global academic events only (avoid exposing individual course sessions).
                 }
 
                 var resultPayload = new

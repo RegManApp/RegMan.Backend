@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using RegMan.Backend.BusinessLayer.Contracts;
 using RegMan.Backend.BusinessLayer.DTOs.CartDTOs;
+using RegMan.Backend.BusinessLayer.Exceptions;
 using RegMan.Backend.DAL.Contracts;
 using RegMan.Backend.DAL.Entities;
 using System.Security.Claims;
@@ -34,14 +35,14 @@ namespace RegMan.Backend.BusinessLayer.Services
             .AnyAsync(s => s.ScheduleSlotId == scheduleSlotId);
 
             if (!slotExists)
-                throw new InvalidOperationException($"Schedule slot with ID {scheduleSlotId} does not exist.");
+                throw new NotFoundException($"Schedule slot with ID {scheduleSlotId} does not exist.");
 
 
             //preventing adding same schedule slot multiple times
             bool alreadyInCart = await cartItemRepository.GetAllAsQueryable().AsNoTracking().AnyAsync(ci => ci.CartId == cartId && ci.ScheduleSlotId == scheduleSlotId);
             if (alreadyInCart)
             {
-                throw new InvalidOperationException($"Schedule slot with ID {scheduleSlotId} is already in the cart.");
+                throw new ConflictException($"Schedule slot with ID {scheduleSlotId} is already in the cart.");
             }
             CartItem cartItem = new CartItem
             {
@@ -62,7 +63,7 @@ namespace RegMan.Backend.BusinessLayer.Services
                 .AnyAsync(c => c.CourseId == courseId);
 
             if (!courseExists)
-                throw new InvalidOperationException($"Course with ID {courseId} does not exist.");
+                throw new NotFoundException($"Course with ID {courseId} does not exist.");
 
             // Find an available section with a scheduleSlot for this course
             var availableSlot = await unitOfWork.ScheduleSlots
@@ -74,7 +75,7 @@ namespace RegMan.Backend.BusinessLayer.Services
                 .FirstOrDefaultAsync();
 
             if (availableSlot == null)
-                throw new InvalidOperationException($"No available sections with schedule for course ID {courseId}. Please ensure the course has sections with available seats and schedules.");
+                throw new BadRequestException($"No available sections with schedule for course ID {courseId}. Please ensure the course has sections with available seats and schedules.");
 
             // Use existing AddToCartAsync with the found scheduleSlotId
             await AddToCartAsync(studentId, availableSlot.ScheduleSlotId);
@@ -88,7 +89,7 @@ namespace RegMan.Backend.BusinessLayer.Services
 
             if (!cartItemExists)
 
-                throw new InvalidOperationException($"Cart item with ID {cartItemId} does not exist in the cart.");
+                throw new NotFoundException($"Cart item with ID {cartItemId} does not exist in the cart.");
 
             bool deleted = await cartItemRepository.DeleteAsync(cartItemId);
             if (!deleted)
@@ -132,7 +133,7 @@ namespace RegMan.Backend.BusinessLayer.Services
                 .FirstOrDefaultAsync(s => s.UserId == userId);
 
             if (student == null)
-                throw new InvalidOperationException($"Student with ID {userId} does not exist.");
+                throw new NotFoundException("Student profile not found.");
 
             // Defensive: ensure a cart exists. Some legacy rows may be missing the Cart record.
             if (student.Cart == null || student.CartId <= 0)
