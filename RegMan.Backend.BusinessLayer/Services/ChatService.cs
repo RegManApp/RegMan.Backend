@@ -239,6 +239,9 @@ namespace RegMan.Backend.BusinessLayer.Services
                         .Where(p => p.UserId != userId)
                         .Select(p => p.User.FullName)
                         .FirstOrDefault() ?? "No Participants"
+                    ,
+                    UnreadCount = cp.Conversation.Messages
+                        .Count(m => m.SenderId != userId && !m.IsRead)
                 })
                 .ToListAsync();
 

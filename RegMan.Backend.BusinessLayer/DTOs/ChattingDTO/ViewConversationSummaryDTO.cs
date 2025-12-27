@@ -13,5 +13,6 @@ namespace RegMan.Backend.BusinessLayer.DTOs.ChattingDTO
         public string LastMessageSnippet { get; set; } = string.Empty;
         public DateTime LastMessageTime { get; set; }
         public string ConversationDisplayName { get; set; } = string.Empty;
+        public int UnreadCount { get; set; }
     }
 }
