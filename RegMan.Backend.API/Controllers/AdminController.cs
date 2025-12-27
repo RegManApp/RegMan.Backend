@@ -661,7 +661,7 @@ namespace RegMan.Backend.API.Controllers
 
             var totalItems = await query.CountAsync();
             var students = await query
-                .OrderBy(u => u.FullName)
+                .OrderByDescending(u => u.CreatedAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .Select(u => new
@@ -671,6 +671,13 @@ namespace RegMan.Backend.API.Controllers
                     u.FullName,
                     u.Role,
                     u.Address,
+                    StudentNumber = u.StudentProfile != null ? u.StudentProfile.StudentId : (int?)null,
+                    StudentLevel = u.StudentProfile == null
+                        ? (int?)null
+                        : (u.StudentProfile.CompletedCredits < 30 ? 0
+                            : u.StudentProfile.CompletedCredits < 60 ? 1
+                                : u.StudentProfile.CompletedCredits < 90 ? 2
+                                    : 3),
                     StudentProfile = u.StudentProfile == null ? null : new
                     {
                         u.StudentProfile.StudentId,
