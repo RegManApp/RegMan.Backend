@@ -125,16 +125,33 @@ namespace RegMan.Backend.BusinessLayer.Services
         }
         private async Task<int> ValidateStudentAndCart(string userId)
         {
-            StudentProfile? studentWithCart = await studentRepository.GetAllAsQueryable().AsNoTracking().Include(s => s.Cart).FirstOrDefaultAsync(s => s.UserId == userId);
-            if (studentWithCart == null)
-            {
+            // Use tracked entity so we can self-heal missing carts.
+            var student = await unitOfWork.StudentProfiles
+                .GetAllAsQueryable()
+                .Include(s => s.Cart)
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null)
                 throw new InvalidOperationException($"Student with ID {userId} does not exist.");
-            }
-            if (studentWithCart.Cart == null)
+
+            // Defensive: ensure a cart exists. Some legacy rows may be missing the Cart record.
+            if (student.Cart == null || student.CartId <= 0)
             {
-                throw new InvalidOperationException($"Cart for student ID {userId} does not exist.");
+                var cart = new Cart
+                {
+                    StudentProfileId = student.StudentId
+                };
+
+                await cartRepository.AddAsync(cart);
+                await unitOfWork.SaveChangesAsync();
+
+                student.CartId = cart.CartId;
+                await unitOfWork.SaveChangesAsync();
+
+                return cart.CartId;
             }
-            return studentWithCart.CartId;
+
+            return student.CartId;
         }
     }
 }

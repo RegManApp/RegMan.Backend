@@ -621,6 +621,17 @@ namespace RegMan.Backend.API.Controllers
             return Ok(ApiResponse<ViewCartDTO>.SuccessResponse(cart));
         }
 
+        // =========================
+        // Cart Management (Admin)
+        // =========================
+        // Required route: GET /api/admin/carts/{studentId}
+        [HttpGet("carts/{studentId}")]
+        public async Task<IActionResult> ViewStudentCartByStudentId(string studentId)
+        {
+            var cart = await cartService.ViewCartAsync(studentId);
+            return Ok(ApiResponse<ViewCartDTO>.SuccessResponse(cart));
+        }
+
         [HttpPost("students/{studentId}/force-enroll")]
         public async Task<IActionResult> ForceEnroll(
             string studentId,
