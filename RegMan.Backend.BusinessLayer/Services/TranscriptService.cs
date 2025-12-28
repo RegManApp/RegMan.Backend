@@ -478,10 +478,15 @@ namespace RegMan.Backend.BusinessLayer.Services
             if (!transcripts.Any())
                 return 0.0;
 
-            double totalQualityPoints = transcripts.Sum(t => t.GradePoints * t.CreditHours);
-            int totalCredits = transcripts.Sum(t => t.CreditHours);
+            // GPA should follow configured retake policy and only count eligible grades.
+            var attemptsForGpa = ApplyGpaPolicy(transcripts)
+                .Where(t => GradeHelper.CountsTowardGpa(t.Grade))
+                .ToList();
 
-            return totalCredits > 0 ? Math.Round(totalQualityPoints / totalCredits, 2) : 0.0;
+            var gpaCredits = attemptsForGpa.Sum(t => t.CreditHours);
+            var qualityPoints = attemptsForGpa.Sum(t => t.GradePoints * t.CreditHours);
+
+            return gpaCredits > 0 ? Math.Round(qualityPoints / gpaCredits, 2) : 0.0;
         }
 
         // =====================================
@@ -497,10 +502,14 @@ namespace RegMan.Backend.BusinessLayer.Services
             if (!transcripts.Any())
                 return 0.0;
 
-            double totalQualityPoints = transcripts.Sum(t => t.GradePoints * t.CreditHours);
-            int totalCredits = transcripts.Sum(t => t.CreditHours);
+            var attemptsForGpa = ApplyGpaPolicy(transcripts)
+                .Where(t => GradeHelper.CountsTowardGpa(t.Grade))
+                .ToList();
 
-            return totalCredits > 0 ? Math.Round(totalQualityPoints / totalCredits, 2) : 0.0;
+            var gpaCredits = attemptsForGpa.Sum(t => t.CreditHours);
+            var qualityPoints = attemptsForGpa.Sum(t => t.GradePoints * t.CreditHours);
+
+            return gpaCredits > 0 ? Math.Round(qualityPoints / gpaCredits, 2) : 0.0;
         }
 
         // =====================================

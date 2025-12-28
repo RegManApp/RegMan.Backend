@@ -19,18 +19,33 @@ namespace RegMan.Backend.API.Controllers
 
         /// <summary>
         /// Returns a Google authorization URL for the current user.
-        /// Frontend should navigate the browser to this URL.
+        /// Frontend should request this endpoint with JWT auth, then navigate the browser to the returned URL.
         /// </summary>
         [HttpGet("connect")]
         [Authorize]
-        public IActionResult Connect([FromQuery] string? returnUrl = null)
+        public IActionResult Connect(
+            [FromQuery] string? returnUrl = null,
+            [FromQuery] bool redirect = false)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrWhiteSpace(userId))
                 return Unauthorized(ApiResponse<string>.FailureResponse("User is not authenticated", 401));
 
-            var url = googleCalendarIntegrationService.CreateAuthorizationUrl(userId, returnUrl);
-            return Redirect(url);
+            string? safeReturnUrl = null;
+            if (!string.IsNullOrWhiteSpace(returnUrl)
+                && returnUrl.StartsWith('/')
+                && !returnUrl.StartsWith("//"))
+            {
+                safeReturnUrl = returnUrl;
+            }
+
+            var url = googleCalendarIntegrationService.CreateAuthorizationUrl(userId, safeReturnUrl);
+
+            // Optional: allow explicit redirect when caller can authenticate the request.
+            if (redirect)
+                return Redirect(url);
+
+            return Ok(ApiResponse<string>.SuccessResponse(url));
         }
 
         /// <summary>
