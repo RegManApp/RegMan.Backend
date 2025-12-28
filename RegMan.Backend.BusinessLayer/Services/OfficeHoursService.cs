@@ -4,6 +4,7 @@ using RegMan.Backend.BusinessLayer.DTOs.OfficeHoursDTOs;
 using RegMan.Backend.BusinessLayer.Exceptions;
 using RegMan.Backend.DAL.Contracts;
 using RegMan.Backend.DAL.Entities;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,12 +16,20 @@ namespace RegMan.Backend.BusinessLayer.Services
     {
         private readonly IUnitOfWork unitOfWork;
         private readonly INotificationService notificationService;
+        private readonly IGoogleCalendarIntegrationService googleCalendarIntegrationService;
+        private readonly ILogger<OfficeHoursService> logger;
         private readonly IBaseRepository<OfficeHour> officeHoursRepository;
         private readonly IBaseRepository<InstructorProfile> instructorsRepository;
-        public OfficeHoursService(IUnitOfWork unitOfWork, INotificationService notificationService)
+        public OfficeHoursService(
+            IUnitOfWork unitOfWork,
+            INotificationService notificationService,
+            IGoogleCalendarIntegrationService googleCalendarIntegrationService,
+            ILogger<OfficeHoursService> logger)
         {
             this.unitOfWork = unitOfWork;
             this.notificationService = notificationService;
+            this.googleCalendarIntegrationService = googleCalendarIntegrationService;
+            this.logger = logger;
             this.officeHoursRepository = unitOfWork.OfficeHours;
             this.instructorsRepository = unitOfWork.InstructorProfiles;
         }
@@ -393,6 +402,8 @@ namespace RegMan.Backend.BusinessLayer.Services
                 .Include(b => b.OfficeHour)
                     .ThenInclude(oh => oh.Instructor)
                         .ThenInclude(i => i.User)
+                .Include(b => b.OfficeHour)
+                    .ThenInclude(oh => oh.Room)
                 .Include(b => b.Student)
                     .ThenInclude(s => s.User)
                 .FirstOrDefaultAsync(b => b.BookingId == bookingId && b.OfficeHour.InstructorId == instructor.InstructorId);
@@ -415,6 +426,16 @@ namespace RegMan.Backend.BusinessLayer.Services
                 date: booking.OfficeHour.Date,
                 startTime: booking.OfficeHour.StartTime
             );
+
+            try
+            {
+                // Best-effort: never fail booking if Google integration fails.
+                await googleCalendarIntegrationService.TryCreateOfficeHourBookingEventAsync(booking, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Google Calendar integration failed for BookingId={BookingId}", booking.BookingId);
+            }
         }
 
         public async Task AddInstructorNotesAsync(string instructorUserId, int bookingId, string? notes)

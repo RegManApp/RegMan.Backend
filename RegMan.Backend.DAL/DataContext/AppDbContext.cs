@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using RegMan.Backend.DAL.Entities;
+using RegMan.Backend.DAL.Entities.Integrations;
 
 namespace RegMan.Backend.DAL.DataContext
 {
@@ -18,6 +19,7 @@ namespace RegMan.Backend.DAL.DataContext
         public DbSet<Conversation> Conversations { get; set; }
         public DbSet<Message> Messages { get; set; }
         public DbSet<ConversationParticipant> ConversationParticipants { get; set; }
+        public DbSet<GoogleCalendarUserToken> GoogleCalendarUserTokens { get; set; }
 
         // public DbSet<BaseUser> Users { get; set; }
 
@@ -56,6 +58,12 @@ namespace RegMan.Backend.DAL.DataContext
                 .HasOne(sp => sp.User)
                 .WithOne(u => u.StudentProfile)
                 .HasForeignKey<StudentProfile>(sp => sp.UserId);
+
+            modelBuilder.Entity<GoogleCalendarUserToken>()
+                .HasOne(t => t.User)
+                .WithOne()
+                .HasForeignKey<GoogleCalendarUserToken>(t => t.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<AdminProfile>()
                 .HasOne(ap => ap.User)

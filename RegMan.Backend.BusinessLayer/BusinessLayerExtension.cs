@@ -28,6 +28,7 @@ namespace RegMan.Backend.BusinessLayer
             services.AddScoped<IStudentProfileService, StudentProfileService>();
             services.AddScoped<IOfficeHoursService, OfficeHoursService>();
             services.AddScoped<INotificationService, NotificationService>();
+            services.AddScoped<IGoogleCalendarIntegrationService, GoogleCalendarIntegrationService>();
 
 
 

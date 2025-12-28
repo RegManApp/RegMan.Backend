@@ -167,6 +167,11 @@ namespace RegMan.Backend.API
             builder.Services.AddScoped<TokenService>();
 
             // ==================
+            // Data Protection (used for integration token storage)
+            // ==================
+            builder.Services.AddDataProtection();
+
+            // ==================
             // Controllers + Validation Wrapper
             // ==================
             builder.Services.AddControllers()
