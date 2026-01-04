@@ -60,6 +60,25 @@ Optional (enables Google Calendar integration; otherwise it is disabled):
 - `GOOGLE_CLIENT_SECRET`
 - `GOOGLE_REDIRECT_URI`
 
+### MonsterASP hosting note
+
+Some shared hosts (e.g., MonsterASP) may not reliably inject runtime environment variables. The Google Calendar integration also supports configuration-based secrets via `RegMan.Backend.API/appsettings.Production.json`:
+
+```json
+{
+  "Google": {
+    "ClientId": "...",
+    "ClientSecret": "...",
+    "RedirectUri": "https://regman.runasp.net/api/integrations/google-calendar/callback"
+  }
+}
+```
+
+Integration endpoints:
+
+- Use `GET /api/integrations/google-calendar/connect-url` with JWT auth; the frontend then navigates to the returned URL.
+- `GET /api/integrations/google-calendar/connect` is legacy and JWT-protected; a plain browser navigation will not include the JWT header and will return 401.
+
 ## Database & Migrations
 
 - EF Core migrations are stored under `RegMan.Backend.DAL/Migrations/`.

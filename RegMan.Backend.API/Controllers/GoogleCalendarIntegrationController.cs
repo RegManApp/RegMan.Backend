@@ -37,9 +37,17 @@ namespace RegMan.Backend.API.Controllers
                 safeReturnUrl = returnUrl;
             }
 
-            var url = googleCalendarIntegrationService.CreateAuthorizationUrl(userId, safeReturnUrl);
-
-            return Ok(ApiResponse<object>.SuccessResponse(new { url }));
+            try
+            {
+                var url = googleCalendarIntegrationService.CreateAuthorizationUrl(userId, safeReturnUrl);
+                return Ok(ApiResponse<object>.SuccessResponse(new { url }));
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Return a clear configuration error instead of a generic 500.
+                return StatusCode(StatusCodes.Status500InternalServerError,
+                    ApiResponse<string>.FailureResponse(ex.Message, StatusCodes.Status500InternalServerError));
+            }
         }
 
         /// <summary>
@@ -62,8 +70,16 @@ namespace RegMan.Backend.API.Controllers
                 safeReturnUrl = returnUrl;
             }
 
-            var url = googleCalendarIntegrationService.CreateAuthorizationUrl(userId, safeReturnUrl);
-            return Redirect(url);
+            try
+            {
+                var url = googleCalendarIntegrationService.CreateAuthorizationUrl(userId, safeReturnUrl);
+                return Redirect(url);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError,
+                    ApiResponse<string>.FailureResponse(ex.Message, StatusCodes.Status500InternalServerError));
+            }
         }
 
         /// <summary>

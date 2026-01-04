@@ -34,6 +34,7 @@ namespace RegMan.Backend.BusinessLayer.Services
         private readonly string clientSecret;
         private readonly string redirectUri;
         private readonly bool isConfigured;
+        private readonly string? configurationError;
 
         private DbContext Db => unitOfWork.Context;
 
@@ -49,24 +50,40 @@ namespace RegMan.Backend.BusinessLayer.Services
             tokenProtector = dataProtectionProvider.CreateProtector("RegMan.GoogleCalendarTokens.v1");
             stateProtector = dataProtectionProvider.CreateProtector("RegMan.GoogleCalendarOAuthState.v1");
 
-            clientId = configuration["GOOGLE_CLIENT_ID"] ?? configuration["Google:ClientId"] ?? string.Empty;
-            clientSecret = configuration["GOOGLE_CLIENT_SECRET"] ?? configuration["Google:ClientSecret"] ?? string.Empty;
-            redirectUri = configuration["GOOGLE_REDIRECT_URI"] ?? configuration["Google:RedirectUri"] ?? string.Empty;
+            // MonsterASP note:
+            // - Env vars may not be reliably injected at runtime.
+            // - Therefore we support configuration-based secrets via appsettings.Production.json (Google:* keys).
+            // Resolution order (MANDATORY):
+            //   1) Environment Variables (via IConfiguration)
+            //   2) Google:ClientId / Google:ClientSecret / Google:RedirectUri
+            clientId = ReadSetting(configuration, envKey: "GOOGLE_CLIENT_ID", configKey: "Google:ClientId");
+            clientSecret = ReadSetting(configuration, envKey: "GOOGLE_CLIENT_SECRET", configKey: "Google:ClientSecret");
+            redirectUri = ReadSetting(configuration, envKey: "GOOGLE_REDIRECT_URI", configKey: "Google:RedirectUri");
 
-            isConfigured = !(string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret) || string.IsNullOrWhiteSpace(redirectUri));
+            var missing = new List<string>(capacity: 3);
+            if (string.IsNullOrWhiteSpace(clientId))
+                missing.Add("GOOGLE_CLIENT_ID or Google:ClientId");
+            if (string.IsNullOrWhiteSpace(clientSecret))
+                missing.Add("GOOGLE_CLIENT_SECRET or Google:ClientSecret");
+            if (string.IsNullOrWhiteSpace(redirectUri))
+                missing.Add("GOOGLE_REDIRECT_URI or Google:RedirectUri");
+
+            isConfigured = missing.Count == 0;
+            configurationError = isConfigured
+                ? null
+                : "Google OAuth is not configured. Missing: " + string.Join(", ", missing) +
+                  ". Configure via environment variables OR appsettings.Production.json under the Google section.";
 
             if (!isConfigured)
             {
-                logger.LogWarning(
-                    "Google OAuth not configured (missing GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_REDIRECT_URI). Google Calendar integration will be disabled."
-                );
+                logger.LogWarning(configurationError);
             }
         }
 
         public string CreateAuthorizationUrl(string userId, string? returnUrl)
         {
             if (!isConfigured)
-                throw new InvalidOperationException("Google OAuth is not configured.");
+                throw new InvalidOperationException(configurationError ?? "Google OAuth is not configured.");
 
             var state = ProtectState(new GoogleCalendarOAuthState(
                 UserId: userId,
@@ -87,6 +104,20 @@ namespace RegMan.Backend.BusinessLayer.Services
             };
 
             return request.Build().ToString();
+        }
+
+        private static string ReadSetting(IConfiguration configuration, string envKey, string configKey)
+        {
+            // IMPORTANT: treat empty/whitespace as missing and allow fallback.
+            var envValue = configuration[envKey];
+            if (!string.IsNullOrWhiteSpace(envValue))
+                return envValue;
+
+            var configValue = configuration[configKey];
+            if (!string.IsNullOrWhiteSpace(configValue))
+                return configValue;
+
+            return string.Empty;
         }
 
         public GoogleCalendarOAuthState UnprotectState(string protectedState)
