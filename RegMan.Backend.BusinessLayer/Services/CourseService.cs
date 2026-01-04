@@ -54,6 +54,12 @@ namespace RegMan.Backend.BusinessLayer.Services
             if (courseDTO == null)
                 throw new ArgumentNullException(nameof(courseDTO));
 
+            if (!Enum.IsDefined(typeof(CourseCategory), courseDTO.CourseCategoryId))
+                throw new BadRequestException(
+                    "Invalid course category id",
+                    errors: new { courseCategoryId = courseDTO.CourseCategoryId }
+                );
+
             var normalizedCode = (courseDTO.CourseCode ?? string.Empty).Trim().ToUpperInvariant();
             if (string.IsNullOrWhiteSpace(normalizedCode))
                 throw new BadRequestException("Course code is required");
@@ -269,6 +275,12 @@ namespace RegMan.Backend.BusinessLayer.Services
         {
             if (courseDTO == null)
                 throw new ArgumentNullException(nameof(courseDTO));
+
+            if (!Enum.IsDefined(typeof(CourseCategory), courseDTO.CourseCategoryId))
+                throw new BadRequestException(
+                    "Invalid course category id",
+                    errors: new { courseCategoryId = courseDTO.CourseCategoryId }
+                );
 
             var existingCourse = await unitOfWork.Courses.GetByIdAsync(courseDTO.CourseId);
             if (existingCourse == null)
