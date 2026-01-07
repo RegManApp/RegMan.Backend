@@ -239,7 +239,55 @@ namespace RegMan.Backend.BusinessLayer.Services
             return HasGoogleTokenAsync(userId, cancellationToken);
         }
 
-        public async Task TryCreateOfficeHourBookingEventAsync(OfficeHourBooking booking, CancellationToken cancellationToken)
+        public async Task DisconnectAsync(string userId, CancellationToken cancellationToken)
+        {
+            if (!isConfigured)
+                return;
+
+            try
+            {
+                var token = await Db.Set<GoogleCalendarUserToken>()
+                    .FirstOrDefaultAsync(t => t.UserId == userId, cancellationToken);
+                if (token != null)
+                {
+                    // Best-effort: revoke the token at Google as part of disconnect.
+                    // Google docs recommend programmatic revocation for unsubscribe/removal flows.
+                    // https://developers.google.com/identity/protocols/oauth2/web-server#tokenrevoke
+                    try
+                    {
+                        var refreshToken = tokenProtector.Unprotect(token.RefreshTokenProtected);
+                        if (!string.IsNullOrWhiteSpace(refreshToken))
+                        {
+                            var flow = CreateFlow();
+                            await flow.RevokeTokenAsync(userId, refreshToken, cancellationToken);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // Never block disconnect on revocation failures.
+                        logger.LogWarning(ex, "Google token revocation failed for UserId={UserId}", userId);
+                    }
+
+                    Db.Set<GoogleCalendarUserToken>().Remove(token);
+                }
+
+                var links = await Db.Set<GoogleCalendarEventLink>()
+                    .Where(l => l.UserId == userId)
+                    .ToListAsync(cancellationToken);
+                if (links.Count > 0)
+                {
+                    Db.Set<GoogleCalendarEventLink>().RemoveRange(links);
+                }
+
+                await unitOfWork.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Google Calendar disconnect failed for UserId={UserId}", userId);
+            }
+        }
+
+        public async Task TryUpsertOfficeHourBookingEventAsync(OfficeHourBooking booking, CancellationToken cancellationToken)
         {
             if (!isConfigured)
                 return;
@@ -290,14 +338,76 @@ namespace RegMan.Backend.BusinessLayer.Services
                     }
                 };
 
-                var insert = calendarService.Events.Insert(newEvent, "primary");
-                insert.SendUpdates = EventsResource.InsertRequest.SendUpdatesEnum.All;
+                var link = await Db.Set<GoogleCalendarEventLink>()
+                    .FirstOrDefaultAsync(l => l.UserId == organizerUserId
+                                              && l.SourceEntityType == "OfficeHourBooking"
+                                              && l.SourceEntityId == booking.BookingId,
+                        cancellationToken);
 
-                await insert.ExecuteAsync(cancellationToken);
+                if (link == null)
+                {
+                    var insert = calendarService.Events.Insert(newEvent, "primary");
+                    insert.SendUpdates = EventsResource.InsertRequest.SendUpdatesEnum.All;
+                    var created = await insert.ExecuteAsync(cancellationToken);
+
+                    if (!string.IsNullOrWhiteSpace(created?.Id))
+                    {
+                        Db.Set<GoogleCalendarEventLink>().Add(new GoogleCalendarEventLink
+                        {
+                            UserId = organizerUserId,
+                            SourceEntityType = "OfficeHourBooking",
+                            SourceEntityId = booking.BookingId,
+                            GoogleCalendarId = "primary",
+                            GoogleEventId = created.Id,
+                            LastSyncedAtUtc = DateTime.UtcNow,
+                            CreatedAtUtc = DateTime.UtcNow
+                        });
+                        await unitOfWork.SaveChangesAsync();
+                    }
+                }
+                else
+                {
+                    var update = calendarService.Events.Update(newEvent, link.GoogleCalendarId, link.GoogleEventId);
+                    update.SendUpdates = EventsResource.UpdateRequest.SendUpdatesEnum.All;
+                    await update.ExecuteAsync(cancellationToken);
+
+                    link.LastSyncedAtUtc = DateTime.UtcNow;
+                    await unitOfWork.SaveChangesAsync();
+                }
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Google Calendar event creation failed for BookingId={BookingId}", booking.BookingId);
+                logger.LogError(ex, "Google Calendar upsert failed for BookingId={BookingId}", booking.BookingId);
+            }
+        }
+
+        public async Task TryDeleteOfficeHourBookingEventAsync(int bookingId, CancellationToken cancellationToken)
+        {
+            if (!isConfigured)
+                return;
+
+            try
+            {
+                var link = await Db.Set<GoogleCalendarEventLink>()
+                    .FirstOrDefaultAsync(l => l.SourceEntityType == "OfficeHourBooking" && l.SourceEntityId == bookingId, cancellationToken);
+
+                if (link == null)
+                    return;
+
+                var calendarService = await CreateCalendarServiceAsync(link.UserId, cancellationToken);
+                if (calendarService == null)
+                    return;
+
+                var delete = calendarService.Events.Delete(link.GoogleCalendarId, link.GoogleEventId);
+                delete.SendUpdates = EventsResource.DeleteRequest.SendUpdatesEnum.All;
+                await delete.ExecuteAsync(cancellationToken);
+
+                Db.Set<GoogleCalendarEventLink>().Remove(link);
+                await unitOfWork.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Google Calendar delete failed for BookingId={BookingId}", bookingId);
             }
         }
 

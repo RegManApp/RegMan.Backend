@@ -121,6 +121,22 @@ namespace RegMan.Backend.API.Controllers
         }
 
         /// <summary>
+        /// Disconnect current user from Google Calendar (removes stored tokens and RegMan↔Google event mappings).
+        /// Best-effort; never exposes tokens.
+        /// </summary>
+        [HttpPost("disconnect")]
+        [Authorize]
+        public async Task<IActionResult> Disconnect(CancellationToken cancellationToken)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userId))
+                return Unauthorized(ApiResponse<string>.FailureResponse("User is not authenticated", 401));
+
+            await googleCalendarIntegrationService.DisconnectAsync(userId, cancellationToken);
+            return Ok(ApiResponse<string>.SuccessResponse("Google Calendar disconnected"));
+        }
+
+        /// <summary>
         /// OAuth callback endpoint configured in Google Cloud Console.
         /// </summary>
         [HttpGet("callback")]

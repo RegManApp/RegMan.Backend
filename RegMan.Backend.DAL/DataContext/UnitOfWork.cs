@@ -30,6 +30,7 @@ namespace RegMan.Backend.DAL.DataContext
         private Lazy<IConversationRepository> conversations;
         private Lazy<IBaseRepository<ConversationParticipant>> conversationParticipants;
         private Lazy<IMessageRepository> messages;
+        private Lazy<IBaseRepository<MessageUserDeletion>> messageUserDeletions;
 
         public UnitOfWork(AppDbContext context)
         {
@@ -55,6 +56,7 @@ namespace RegMan.Backend.DAL.DataContext
             messages = new Lazy<IMessageRepository>(() => new MessageRepository(dbcontext));
             conversations = new Lazy<IConversationRepository>(() => new ConversationRepository(dbcontext));
             conversationParticipants = new Lazy<IBaseRepository<ConversationParticipant>>(() => new BaseRepository<ConversationParticipant>(dbcontext));
+            messageUserDeletions = new Lazy<IBaseRepository<MessageUserDeletion>>(() => new BaseRepository<MessageUserDeletion>(dbcontext));
             refreshTokens = new Lazy<IBaseRepository<RefreshToken>>(
     () => new BaseRepository<RefreshToken>(dbcontext)
 );
@@ -82,6 +84,7 @@ namespace RegMan.Backend.DAL.DataContext
         public IConversationRepository Conversations => conversations.Value;
         public IBaseRepository<ConversationParticipant> ConversationParticipants => conversationParticipants.Value;
         public IMessageRepository Messages => messages.Value;
+        public IBaseRepository<MessageUserDeletion> MessageUserDeletions => messageUserDeletions.Value;
 
         public DbContext Context => dbcontext;
 

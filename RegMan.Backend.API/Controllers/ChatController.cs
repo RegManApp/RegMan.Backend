@@ -82,14 +82,41 @@ namespace RegMan.Backend.API.Controllers
         public async Task<IActionResult> GetConversationByIdAsync(
             int conversationId,
             [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 20)
+            [FromQuery] int pageSize = 20,
+            [FromQuery] int? beforeMessageId = null)
         {
             var userId = GetUserId();
             if (string.IsNullOrWhiteSpace(userId))
                 return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized", StatusCodes.Status401Unauthorized));
 
-            var conversation = await chatService.ViewConversationAsync(userId, conversationId, page, pageSize);
+            var conversation = beforeMessageId.HasValue
+                ? await chatService.ViewConversationByCursorAsync(userId, conversationId, beforeMessageId, pageSize)
+                : await chatService.ViewConversationAsync(userId, conversationId, page, pageSize);
             return Ok(ApiResponse<ViewConversationDTO>.SuccessResponse(conversation));
+        }
+
+        [HttpPost("conversations/{conversationId:int}/messages/{messageId:int}/delete-for-me")]
+        public async Task<IActionResult> DeleteMessageForMeAsync(int conversationId, int messageId)
+        {
+            var userId = GetUserId();
+            if (string.IsNullOrWhiteSpace(userId))
+                return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized", StatusCodes.Status401Unauthorized));
+
+            await chatService.DeleteMessageForMeAsync(userId, conversationId, messageId);
+            await chatHub.Clients.User(userId).SendAsync("MessageDeletedForMe", new { conversationId, messageId });
+            return Ok(ApiResponse<object>.SuccessResponse(new { conversationId, messageId }));
+        }
+
+        [HttpPost("conversations/{conversationId:int}/messages/{messageId:int}/delete-for-everyone")]
+        public async Task<IActionResult> DeleteMessageForEveryoneAsync(int conversationId, int messageId)
+        {
+            var userId = GetUserId();
+            if (string.IsNullOrWhiteSpace(userId))
+                return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized", StatusCodes.Status401Unauthorized));
+
+            await chatService.DeleteMessageForEveryoneAsync(userId, conversationId, messageId);
+            await chatHub.Clients.Group(conversationId.ToString()).SendAsync("MessageDeletedForEveryone", new { conversationId, messageId });
+            return Ok(ApiResponse<object>.SuccessResponse(new { conversationId, messageId }));
         }
 
         [HttpPost("conversations/{conversationId:int}/read")]

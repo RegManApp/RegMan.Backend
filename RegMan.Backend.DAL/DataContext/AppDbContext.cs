@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using RegMan.Backend.DAL.Entities;
+using RegMan.Backend.DAL.Entities.Calendar;
 using RegMan.Backend.DAL.Entities.Integrations;
 
 namespace RegMan.Backend.DAL.DataContext
@@ -19,7 +20,15 @@ namespace RegMan.Backend.DAL.DataContext
         public DbSet<Conversation> Conversations { get; set; }
         public DbSet<Message> Messages { get; set; }
         public DbSet<ConversationParticipant> ConversationParticipants { get; set; }
+        public DbSet<MessageUserDeletion> MessageUserDeletions { get; set; }
         public DbSet<GoogleCalendarUserToken> GoogleCalendarUserTokens { get; set; }
+
+        public DbSet<GoogleCalendarEventLink> GoogleCalendarEventLinks { get; set; }
+
+        public DbSet<UserCalendarPreferences> UserCalendarPreferences { get; set; }
+        public DbSet<UserReminderRule> UserReminderRules { get; set; }
+        public DbSet<ScheduledNotification> ScheduledNotifications { get; set; }
+        public DbSet<CalendarAuditEntry> CalendarAuditEntries { get; set; }
 
         // public DbSet<BaseUser> Users { get; set; }
 
@@ -65,6 +74,20 @@ namespace RegMan.Backend.DAL.DataContext
                 .HasForeignKey<GoogleCalendarUserToken>(t => t.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            modelBuilder.Entity<UserCalendarPreferences>()
+                .HasOne(p => p.User)
+                .WithOne()
+                .HasForeignKey<UserCalendarPreferences>(p => p.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<GoogleCalendarEventLink>()
+                .HasIndex(x => new { x.UserId, x.SourceEntityType, x.SourceEntityId })
+                .IsUnique();
+
+            modelBuilder.Entity<ScheduledNotification>()
+                .HasIndex(x => new { x.UserId, x.TriggerType, x.SourceEntityType, x.SourceEntityId, x.ScheduledAtUtc })
+                .IsUnique(false);
+
             modelBuilder.Entity<AdminProfile>()
                 .HasOne(ap => ap.User)
                 .WithOne(u => u.AdminProfile)
@@ -107,6 +130,53 @@ namespace RegMan.Backend.DAL.DataContext
                 .HasOne(cp => cp.User)
                 .WithMany()
                 .HasForeignKey(cp => cp.UserId);
+
+            modelBuilder.Entity<Message>()
+                .HasOne(m => m.Conversation)
+                .WithMany(c => c.Messages)
+                .HasForeignKey(m => m.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Message>()
+                .HasOne(m => m.Sender)
+                .WithMany()
+                .HasForeignKey(m => m.SenderId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Message>()
+                .Property(m => m.ServerReceivedAt)
+                .HasDefaultValueSql("GETUTCDATE()");
+
+            modelBuilder.Entity<Message>()
+                .HasIndex(m => new { m.ConversationId, m.SentAt, m.MessageId });
+
+            modelBuilder.Entity<Message>()
+                .HasIndex(m => new { m.ConversationId, m.SenderId, m.ClientMessageId })
+                .IsUnique();
+
+            modelBuilder.Entity<Conversation>()
+                .HasIndex(c => c.LastActivityAt);
+
+            modelBuilder.Entity<ConversationParticipant>()
+                .HasIndex(cp => new { cp.UserId, cp.ConversationId });
+
+            modelBuilder.Entity<MessageUserDeletion>()
+                .HasKey(x => new { x.MessageId, x.UserId });
+
+            modelBuilder.Entity<MessageUserDeletion>()
+                .HasOne(x => x.Message)
+                .WithMany()
+                .HasForeignKey(x => x.MessageId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<MessageUserDeletion>()
+                .HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<MessageUserDeletion>()
+                .HasIndex(x => new { x.UserId, x.MessageId });
 
             // ============================
             // 2. ONE-TO-MANY RELATIONSHIPS
@@ -326,3 +396,4 @@ namespace RegMan.Backend.DAL.DataContext
         }
     }
 }
+

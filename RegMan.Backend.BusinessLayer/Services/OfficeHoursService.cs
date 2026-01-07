@@ -17,6 +17,7 @@ namespace RegMan.Backend.BusinessLayer.Services
         private readonly IUnitOfWork unitOfWork;
         private readonly INotificationService notificationService;
         private readonly IGoogleCalendarIntegrationService googleCalendarIntegrationService;
+        private readonly ICalendarReminderEngine calendarReminderEngine;
         private readonly ILogger<OfficeHoursService> logger;
         private readonly IBaseRepository<OfficeHour> officeHoursRepository;
         private readonly IBaseRepository<InstructorProfile> instructorsRepository;
@@ -24,11 +25,13 @@ namespace RegMan.Backend.BusinessLayer.Services
             IUnitOfWork unitOfWork,
             INotificationService notificationService,
             IGoogleCalendarIntegrationService googleCalendarIntegrationService,
+            ICalendarReminderEngine calendarReminderEngine,
             ILogger<OfficeHoursService> logger)
         {
             this.unitOfWork = unitOfWork;
             this.notificationService = notificationService;
             this.googleCalendarIntegrationService = googleCalendarIntegrationService;
+            this.calendarReminderEngine = calendarReminderEngine;
             this.logger = logger;
             this.officeHoursRepository = unitOfWork.OfficeHours;
             this.instructorsRepository = unitOfWork.InstructorProfiles;
@@ -370,6 +373,15 @@ namespace RegMan.Backend.BusinessLayer.Services
                 booking.CancelledBy = "Instructor";
                 booking.CancelledAt = DateTime.UtcNow;
 
+                try
+                {
+                    await calendarReminderEngine.CancelOfficeHourRemindersAsync(booking.BookingId, CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Reminder cancellation failed for BookingId={BookingId}", booking.BookingId);
+                }
+
                 var student = await Db.Set<StudentProfile>()
                     .Include(s => s.User)
                     .FirstOrDefaultAsync(s => s.StudentId == booking.StudentId);
@@ -383,6 +395,15 @@ namespace RegMan.Backend.BusinessLayer.Services
                         startTime: officeHour.StartTime,
                         reason: booking.CancellationReason
                     );
+                }
+
+                try
+                {
+                    await googleCalendarIntegrationService.TryDeleteOfficeHourBookingEventAsync(booking.BookingId, CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Google Calendar delete failed for BookingId={BookingId}", booking.BookingId);
                 }
             }
 
@@ -429,8 +450,19 @@ namespace RegMan.Backend.BusinessLayer.Services
 
             try
             {
+                // Best-effort: schedule in-app reminders for both participants.
+                await calendarReminderEngine.EnsurePlannedForUserAsync(booking.Student.UserId, DateTime.UtcNow, CancellationToken.None);
+                await calendarReminderEngine.EnsurePlannedForUserAsync(booking.OfficeHour.Instructor.UserId, DateTime.UtcNow, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Reminder planning failed for BookingId={BookingId}", booking.BookingId);
+            }
+
+            try
+            {
                 // Best-effort: never fail booking if Google integration fails.
-                await googleCalendarIntegrationService.TryCreateOfficeHourBookingEventAsync(booking, CancellationToken.None);
+                await googleCalendarIntegrationService.TryUpsertOfficeHourBookingEventAsync(booking, CancellationToken.None);
             }
             catch (Exception ex)
             {
@@ -711,6 +743,24 @@ namespace RegMan.Backend.BusinessLayer.Services
             booking.OfficeHour.Status = OfficeHourStatus.Available;
 
             await unitOfWork.SaveChangesAsync();
+
+            try
+            {
+                await calendarReminderEngine.CancelOfficeHourRemindersAsync(booking.BookingId, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Reminder cancellation failed for BookingId={BookingId}", booking.BookingId);
+            }
+
+            try
+            {
+                await googleCalendarIntegrationService.TryDeleteOfficeHourBookingEventAsync(booking.BookingId, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Google Calendar delete failed for BookingId={BookingId}", booking.BookingId);
+            }
 
             if (userRole == "Student")
             {

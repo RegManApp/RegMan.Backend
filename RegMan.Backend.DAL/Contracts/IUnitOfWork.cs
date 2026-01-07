@@ -17,6 +17,7 @@ namespace RegMan.Backend.DAL.Contracts
         IMessageRepository Messages { get; }
         IConversationRepository Conversations { get; }
         IBaseRepository<ConversationParticipant> ConversationParticipants { get; }
+        IBaseRepository<MessageUserDeletion> MessageUserDeletions { get; }
         IBaseRepository<AdminProfile> AdminProfiles { get; }
         IBaseRepository<InstructorProfile> InstructorProfiles { get; }
         IBaseRepository<StudentProfile> StudentProfiles { get; }

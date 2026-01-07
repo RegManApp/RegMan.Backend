@@ -30,9 +30,17 @@ namespace RegMan.Backend.BusinessLayer
             services.AddScoped<INotificationService, NotificationService>();
             services.AddScoped<IGoogleCalendarIntegrationService, GoogleCalendarIntegrationService>();
 
+            services.AddScoped<ICalendarViewService, CalendarViewService>();
+
+            services.AddScoped<ICalendarPreferencesService, CalendarPreferencesService>();
+            services.AddScoped<IReminderRulesService, ReminderRulesService>();
+            services.AddScoped<ICalendarReminderEngine, CalendarReminderEngine>();
+            services.AddScoped<IAcademicCalendarAuditService, AcademicCalendarAuditService>();
+
 
 
             return services;
         }
     }
 }
+

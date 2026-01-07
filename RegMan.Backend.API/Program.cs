@@ -73,6 +73,9 @@ namespace RegMan.Backend.API
 
             // Realtime notifications publisher (BusinessLayer depends on interface only)
             builder.Services.AddScoped<INotificationRealtimePublisher, SignalRNotificationRealtimePublisher>();
+
+            // Scheduled notification dispatcher (in-app reminders)
+            builder.Services.AddHostedService<ScheduledNotificationDispatcherHostedService>();
             // =========================
             // Database + Business Layer
             // =========================

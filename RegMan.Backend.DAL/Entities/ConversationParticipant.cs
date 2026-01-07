@@ -12,5 +12,8 @@ namespace RegMan.Backend.DAL.Entities
         public Conversation Conversation { get; set; }
         public string UserId { get; set; }
         public BaseUser User { get; set; }
+
+        public int? LastReadMessageId { get; set; }
+        public DateTime? LastReadAt { get; set; }
     }
 }

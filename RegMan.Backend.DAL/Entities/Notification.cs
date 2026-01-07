@@ -12,7 +12,11 @@ namespace RegMan.Backend.DAL.Entities
         OfficeHourReminder = 3,
         EnrollmentApproved = 4,
         EnrollmentDeclined = 5,
-        General = 6
+        General = 6,
+
+        // Calendar-driven reminders (in-app only for now)
+        ClassReminder = 7,
+        DeadlineReminder = 8
     }
 
     public class Notification
@@ -48,3 +52,4 @@ namespace RegMan.Backend.DAL.Entities
         public BaseUser User { get; set; } = null!;
     }
 }
+

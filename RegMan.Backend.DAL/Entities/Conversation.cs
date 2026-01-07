@@ -10,6 +10,9 @@ namespace RegMan.Backend.DAL.Entities
     {
         public int ConversationId { get; set; }
         public string? ConversationName { get; set; }
+
+        public DateTime? LastActivityAt { get; set; }
+        public int? LastMessageId { get; set; }
         //public string FirstSenderId { get; set; }
         //public string LastSenderId { get; set; }
         //public BaseUser Firstsender { get; set; }

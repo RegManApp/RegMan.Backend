@@ -1,8 +1,8 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using RegMan.Backend.BusinessLayer.Contracts;
-using RegMan.Backend.BusinessLayer.DTOs.ChattingDTO;
 using RegMan.Backend.BusinessLayer.Services;
+using RegMan.Backend.BusinessLayer.DTOs.ChattingDTO;
 using RegMan.Backend.DAL.Entities;
 using System.Collections.Concurrent;
 
@@ -38,7 +38,13 @@ namespace RegMan.Backend.API.Hubs
                 var newCount = OnlineConnectionCounts.AddOrUpdate(userId, 1, (_, existing) => existing + 1);
                 if (newCount == 1)
                 {
-                    await Clients.All.SendAsync("UserPresenceChanged", new { userId, isOnline = true });
+                    // Broadcast presence only to users who share a conversation with this user.
+                    var userConvosForPresence = await chatService.GetUserConversationIds(userId);
+                    foreach (var convoId in userConvosForPresence)
+                    {
+                        await Clients.Group(convoId.ToString())
+                            .SendAsync("UserPresenceChanged", new { userId, isOnline = true });
+                    }
                 }
 
                 // get all conversation IDs this user belongs to
@@ -70,7 +76,15 @@ namespace RegMan.Backend.API.Hubs
                         if (existing <= 1)
                         {
                             OnlineConnectionCounts.TryRemove(userId, out _);
-                            await Clients.All.SendAsync("UserPresenceChanged", new { userId, isOnline = false });
+                            var lastSeenAt = DateTime.UtcNow;
+                            await chatService.UpdateUserLastSeenAsync(userId, lastSeenAt);
+                            // Broadcast presence only to users who share a conversation with this user.
+                            var userConvosForPresence = await chatService.GetUserConversationIds(userId);
+                            foreach (var convoId in userConvosForPresence)
+                            {
+                                await Clients.Group(convoId.ToString())
+                                    .SendAsync("UserPresenceChanged", new { userId, isOnline = false, lastSeenAt });
+                            }
                         }
                         else
                         {
@@ -89,14 +103,43 @@ namespace RegMan.Backend.API.Hubs
 
         public Task<List<string>> GetOnlineUsers()
         {
-            var users = OnlineConnectionCounts.Keys.ToList();
-            return Task.FromResult(users);
+            // SECURITY: Only return online users who share at least one conversation with the caller.
+            // (Prevents leaking global user presence to all authenticated users.)
+            return GetOnlineUsersInternalAsync();
+        }
+
+        private async Task<List<string>> GetOnlineUsersInternalAsync()
+        {
+            var requesterUserId = Context.UserIdentifier;
+            if (string.IsNullOrWhiteSpace(requesterUserId))
+                throw new HubException("Unauthorized");
+
+            var convoIds = await chatService.GetUserConversationIds(requesterUserId);
+            var allowedUserIds = new HashSet<string>(StringComparer.Ordinal);
+
+            foreach (var convoId in convoIds)
+            {
+                // ViewConversationAsync enforces membership and returns participant IDs.
+                var convo = await chatService.ViewConversationAsync(requesterUserId, convoId, pageNumber: 1, pageSize: 1);
+                foreach (var participantId in convo.ParticipantIds)
+                {
+                    if (!string.IsNullOrWhiteSpace(participantId) && participantId != requesterUserId)
+                        allowedUserIds.Add(participantId);
+                }
+            }
+
+            var online = OnlineConnectionCounts.Keys
+                .Where(id => allowedUserIds.Contains(id))
+                .ToList();
+
+            return online;
         }
 
         public async Task<ViewMessageDTO> SendMessageAsync(
             string? receiverId,
             int? conversationId,
-            string textMessage)
+            string textMessage,
+            string? clientMessageId = null)
         {
             var senderId = Context.UserIdentifier!;
             if (conversationId is null)
@@ -105,7 +148,8 @@ namespace RegMan.Backend.API.Hubs
             var message = await chatService.SendMessageToConversationAsync(
                 senderId,
                 conversationId.Value,
-                textMessage
+                textMessage,
+                clientMessageId
             );
 
             var conversationIdStr = conversationId.Value.ToString();
@@ -131,6 +175,46 @@ namespace RegMan.Backend.API.Hubs
             }
 
             return message;
+        }
+
+        public async Task TypingStarted(int conversationId)
+        {
+            var userId = Context.UserIdentifier;
+            if (string.IsNullOrWhiteSpace(userId))
+                throw new HubException("Unauthorized");
+
+            await chatService.ViewConversationAsync(userId, conversationId, pageNumber: 1, pageSize: 1);
+            await Clients.Group(conversationId.ToString()).SendAsync("UserTyping", new { conversationId, userId, isTyping = true });
+        }
+
+        public async Task TypingStopped(int conversationId)
+        {
+            var userId = Context.UserIdentifier;
+            if (string.IsNullOrWhiteSpace(userId))
+                throw new HubException("Unauthorized");
+
+            await chatService.ViewConversationAsync(userId, conversationId, pageNumber: 1, pageSize: 1);
+            await Clients.Group(conversationId.ToString()).SendAsync("UserTyping", new { conversationId, userId, isTyping = false });
+        }
+
+        public async Task DeleteMessageForMe(int conversationId, int messageId)
+        {
+            var userId = Context.UserIdentifier;
+            if (string.IsNullOrWhiteSpace(userId))
+                throw new HubException("Unauthorized");
+
+            await chatService.DeleteMessageForMeAsync(userId, conversationId, messageId);
+            await Clients.Caller.SendAsync("MessageDeletedForMe", new { conversationId, messageId });
+        }
+
+        public async Task DeleteMessageForEveryone(int conversationId, int messageId)
+        {
+            var userId = Context.UserIdentifier;
+            if (string.IsNullOrWhiteSpace(userId))
+                throw new HubException("Unauthorized");
+
+            await chatService.DeleteMessageForEveryoneAsync(userId, conversationId, messageId);
+            await Clients.Group(conversationId.ToString()).SendAsync("MessageDeletedForEveryone", new { conversationId, messageId });
         }
 
         public async Task JoinConversationGroup(int conversationId)

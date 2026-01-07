@@ -13,6 +13,7 @@ using RegMan.Backend.DAL.Contracts;
 
 
 
+
 namespace RegMan.Backend.API.Controllers
 {
     [Authorize(Roles = "Admin")]
@@ -155,6 +156,7 @@ namespace RegMan.Backend.API.Controllers
             public string Status { get; set; } = "Pending";
             public DateTime SubmittedAt { get; set; }
         }
+        private readonly IAcademicCalendarAuditService academicCalendarAuditService;
         private readonly UserManager<BaseUser> userManager;
         private readonly RoleManager<IdentityRole> roleManager;
         private readonly IAuditLogService auditLogService;
@@ -170,6 +172,7 @@ namespace RegMan.Backend.API.Controllers
             IAuditLogService auditLogService,
             ICartService cartService,
             IEnrollmentService enrollmentService,
+            IAcademicCalendarAuditService academicCalendarAuditService,
             IUnitOfWork unitOfWork)
         {
             this.userManager = userManager;
@@ -177,6 +180,7 @@ namespace RegMan.Backend.API.Controllers
             this.auditLogService = auditLogService;
             this.cartService = cartService;
             this.enrollmentService = enrollmentService;
+            this.academicCalendarAuditService = academicCalendarAuditService;
             this.unitOfWork = unitOfWork;
         }
 
@@ -288,6 +292,18 @@ namespace RegMan.Backend.API.Controllers
             var settings = await unitOfWork.AcademicCalendarSettings.GetAllAsQueryable()
                 .FirstOrDefaultAsync(s => s.SettingsKey == "default");
 
+            var before = settings == null
+                ? new AcademicCalendarSettings { SettingsKey = "default" }
+                : new AcademicCalendarSettings
+                {
+                    SettingsKey = settings.SettingsKey,
+                    RegistrationStartDateUtc = settings.RegistrationStartDateUtc,
+                    RegistrationEndDateUtc = settings.RegistrationEndDateUtc,
+                    WithdrawStartDateUtc = settings.WithdrawStartDateUtc,
+                    WithdrawEndDateUtc = settings.WithdrawEndDateUtc,
+                    UpdatedAtUtc = settings.UpdatedAtUtc
+                };
+
             if (settings == null)
             {
                 settings = new AcademicCalendarSettings { SettingsKey = "default" };
@@ -301,7 +317,40 @@ namespace RegMan.Backend.API.Controllers
             settings.UpdatedAtUtc = DateTime.UtcNow;
 
             await unitOfWork.SaveChangesAsync();
+
+            try
+            {
+                var actorId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+                var actorEmail = User.FindFirstValue(ClaimTypes.Email) ?? "unknown@admin.com";
+                await academicCalendarAuditService.LogChangeAsync(actorId, actorEmail, before, settings, "UPDATE", CancellationToken.None);
+            }
+            catch
+            {
+                // never fail calendar update on audit failure
+            }
             return Ok(ApiResponse<string>.SuccessResponse("Academic calendar timeline updated"));
+        }
+
+        [HttpGet("calendar-audit")]
+        public async Task<IActionResult> GetCalendarAudit([FromQuery] DateTime? fromUtc = null, [FromQuery] DateTime? toUtc = null, CancellationToken cancellationToken = default)
+        {
+            var items = await academicCalendarAuditService.GetAuditAsync(fromUtc, toUtc, cancellationToken);
+            return Ok(ApiResponse<object>.SuccessResponse(items));
+        }
+
+        [HttpPost("calendar-audit/{id:int}/restore")]
+        public async Task<IActionResult> RestoreCalendarAudit(int id, CancellationToken cancellationToken)
+        {
+            var actorId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+            var actorEmail = User.FindFirstValue(ClaimTypes.Email) ?? "unknown@admin.com";
+
+            var ok = await academicCalendarAuditService.RestoreAsync(id, actorId, actorEmail, cancellationToken);
+            if (!ok)
+            {
+                return NotFound(ApiResponse<string>.FailureResponse("Audit entry not found or invalid", StatusCodes.Status404NotFound));
+            }
+
+            return Ok(ApiResponse<string>.SuccessResponse("Academic calendar restored"));
         }
         // Helper: Admin Info
         // =========================

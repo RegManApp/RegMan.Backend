@@ -8,6 +8,8 @@ namespace RegMan.Backend.DAL.Entities
     {
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+        public DateTime? LastSeenAt { get; set; }
+
         [Required]
         [StringLength(100, MinimumLength = 2)]
         public string FullName { get; set; } = null!;

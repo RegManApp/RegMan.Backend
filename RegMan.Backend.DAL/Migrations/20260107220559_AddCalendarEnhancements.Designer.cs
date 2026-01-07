@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using RegMan.Backend.DAL.DataContext;
 
@@ -11,9 +12,11 @@ using RegMan.Backend.DAL.DataContext;
 namespace RegMan.Backend.DAL.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260107220559_AddCalendarEnhancements")]
+    partial class AddCalendarEnhancements
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -352,9 +355,6 @@ namespace RegMan.Backend.DAL.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<DateTime?>("LastSeenAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("bit");
 
@@ -631,15 +631,7 @@ namespace RegMan.Backend.DAL.Migrations
                     b.Property<string>("ConversationName")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<DateTime?>("LastActivityAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("LastMessageId")
-                        .HasColumnType("int");
-
                     b.HasKey("ConversationId");
-
-                    b.HasIndex("LastActivityAt");
 
                     b.ToTable("Conversations");
                 });
@@ -652,15 +644,9 @@ namespace RegMan.Backend.DAL.Migrations
                     b.Property<string>("UserId")
                         .HasColumnType("nvarchar(450)");
 
-                    b.Property<DateTime?>("LastReadAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("LastReadMessageId")
-                        .HasColumnType("int");
-
                     b.HasKey("ConversationId", "UserId");
 
-                    b.HasIndex("UserId", "ConversationId");
+                    b.HasIndex("UserId");
 
                     b.ToTable("ConversationParticipants");
                 });
@@ -854,20 +840,8 @@ namespace RegMan.Backend.DAL.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("MessageId"));
 
-                    b.Property<string>("ClientMessageId")
-                        .HasColumnType("nvarchar(450)");
-
                     b.Property<int>("ConversationId")
                         .HasColumnType("int");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("DeletedByUserId")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("IsDeletedForEveryone")
-                        .HasColumnType("bit");
 
                     b.Property<bool>("IsRead")
                         .HasColumnType("bit");
@@ -882,9 +856,6 @@ namespace RegMan.Backend.DAL.Migrations
                     b.Property<DateTime>("SentAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<DateTime>("ServerReceivedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
@@ -894,33 +865,11 @@ namespace RegMan.Backend.DAL.Migrations
 
                     b.HasKey("MessageId");
 
+                    b.HasIndex("ConversationId");
+
                     b.HasIndex("SenderId");
 
-                    b.HasIndex("ConversationId", "SenderId", "ClientMessageId")
-                        .IsUnique()
-                        .HasFilter("[ClientMessageId] IS NOT NULL");
-
-                    b.HasIndex("ConversationId", "SentAt", "MessageId");
-
                     b.ToTable("Messages");
-                });
-
-            modelBuilder.Entity("RegMan.Backend.DAL.Entities.MessageUserDeletion", b =>
-                {
-                    b.Property<int>("MessageId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("UserId")
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<DateTime>("DeletedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("MessageId", "UserId");
-
-                    b.HasIndex("UserId", "MessageId");
-
-                    b.ToTable("MessageUserDeletions");
                 });
 
             modelBuilder.Entity("RegMan.Backend.DAL.Entities.Notification", b =>
@@ -1578,31 +1527,12 @@ namespace RegMan.Backend.DAL.Migrations
                     b.HasOne("RegMan.Backend.DAL.Entities.BaseUser", "Sender")
                         .WithMany()
                         .HasForeignKey("SenderId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Conversation");
 
                     b.Navigation("Sender");
-                });
-
-            modelBuilder.Entity("RegMan.Backend.DAL.Entities.MessageUserDeletion", b =>
-                {
-                    b.HasOne("RegMan.Backend.DAL.Entities.Message", "Message")
-                        .WithMany()
-                        .HasForeignKey("MessageId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("RegMan.Backend.DAL.Entities.BaseUser", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Message");
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("RegMan.Backend.DAL.Entities.Notification", b =>

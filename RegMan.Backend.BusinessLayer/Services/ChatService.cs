@@ -14,6 +14,7 @@ namespace RegMan.Backend.BusinessLayer.Services
         private readonly IConversationRepository convoRepository;
         private readonly IMessageRepository messageRepository;
         private readonly IBaseRepository<ConversationParticipant> participantRepository;
+        private readonly IBaseRepository<MessageUserDeletion> messageUserDeletionRepository;
         private readonly UserManager<BaseUser> userManager;
         public ChatService(IUnitOfWork unitOfWork, UserManager<BaseUser> userManager)
         {
@@ -22,6 +23,7 @@ namespace RegMan.Backend.BusinessLayer.Services
             this.convoRepository = unitOfWork.Conversations;
             this.messageRepository = unitOfWork.Messages;
             this.participantRepository = unitOfWork.ConversationParticipants;
+            this.messageUserDeletionRepository = unitOfWork.MessageUserDeletions;
         }
 
         private async Task<Conversation> CreateConversationAsync(List<string> userIds)
@@ -147,22 +149,28 @@ namespace RegMan.Backend.BusinessLayer.Services
             //Conversation? conversation = await convoRepository.GetConversationByParticipantsAsync(senderId, recieverId);
             //if (conversation is null) 
             //    conversation = await CreateConversationAsync(new List<string> { senderId, recieverId });
+            var now = DateTime.UtcNow;
             var message = new Message
             {
                 SenderId = senderId,
                 ConversationId = conversation.ConversationId,
                 TextMessage = textMessage,
-                SentAt = DateTime.UtcNow,
+                SentAt = now,
+                ServerReceivedAt = now,
                 Status = MsgStatus.Sent,
                 IsRead = false,
                 ReadAt = null
             };
             await messageRepository.AddAsync(message);
             await unitOfWork.SaveChangesAsync();
+
+            conversation.LastActivityAt = now;
+            conversation.LastMessageId = message.MessageId;
+            await unitOfWork.SaveChangesAsync();
             return await ViewConversationAsync(senderId, conversation.ConversationId, 1, 20);
         }
 
-        public async Task<ViewMessageDTO> SendMessageToConversationAsync(string senderId, int conversationId, string textMessage)
+        public async Task<ViewMessageDTO> SendMessageToConversationAsync(string senderId, int conversationId, string textMessage, string? clientMessageId = null)
         {
             if (string.IsNullOrWhiteSpace(senderId))
                 throw new UnauthorizedException();
@@ -181,18 +189,94 @@ namespace RegMan.Backend.BusinessLayer.Services
             if (!participants.Any(p => p.UserId == senderId))
                 throw new ForbiddenException("Sender is not a participant of the conversation.");
 
+            clientMessageId = string.IsNullOrWhiteSpace(clientMessageId) ? null : clientMessageId.Trim();
+            if (!string.IsNullOrWhiteSpace(clientMessageId))
+            {
+                var existing = await messageRepository.GetAllAsQueryable()
+                    .AsNoTracking()
+                    .Where(m => m.ConversationId == conversationId)
+                    .Where(m => m.SenderId == senderId)
+                    .Where(m => m.ClientMessageId == clientMessageId)
+                    .Select(m => new ViewMessageDTO
+                    {
+                        MessageId = m.MessageId,
+                        ConversationId = m.ConversationId,
+                        ClientMessageId = m.ClientMessageId,
+                        ServerReceivedAt = m.ServerReceivedAt,
+                        Content = m.IsDeletedForEveryone ? "[deleted]" : m.TextMessage,
+                        SenderId = m.SenderId,
+                        SenderName = m.Sender.FullName,
+                        Status = m.Status,
+                        Timestamp = m.SentAt,
+                        IsDeletedForEveryone = m.IsDeletedForEveryone,
+                        DeletedAt = m.DeletedAt,
+                        DeletedByUserId = m.DeletedByUserId,
+                        IsRead = m.IsRead,
+                        ReadAt = m.ReadAt
+                    })
+                    .FirstOrDefaultAsync();
+
+                if (existing != null)
+                    return existing;
+            }
+
+            var now = DateTime.UtcNow;
+
             var message = new Message
             {
                 SenderId = senderId,
                 ConversationId = conversationId,
                 TextMessage = textMessage,
-                SentAt = DateTime.UtcNow,
+                SentAt = now,
+                ServerReceivedAt = now,
+                ClientMessageId = clientMessageId,
                 Status = MsgStatus.Sent,
                 IsRead = false,
                 ReadAt = null
             };
 
-            await messageRepository.AddAsync(message);
+            try
+            {
+                await messageRepository.AddAsync(message);
+                await unitOfWork.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                if (!string.IsNullOrWhiteSpace(clientMessageId))
+                {
+                    var dup = await messageRepository.GetAllAsQueryable()
+                        .AsNoTracking()
+                        .Where(m => m.ConversationId == conversationId)
+                        .Where(m => m.SenderId == senderId)
+                        .Where(m => m.ClientMessageId == clientMessageId)
+                        .Select(m => new ViewMessageDTO
+                        {
+                            MessageId = m.MessageId,
+                            ConversationId = m.ConversationId,
+                            ClientMessageId = m.ClientMessageId,
+                            ServerReceivedAt = m.ServerReceivedAt,
+                            Content = m.IsDeletedForEveryone ? "[deleted]" : m.TextMessage,
+                            SenderId = m.SenderId,
+                            SenderName = m.Sender.FullName,
+                            Status = m.Status,
+                            Timestamp = m.SentAt,
+                            IsDeletedForEveryone = m.IsDeletedForEveryone,
+                            DeletedAt = m.DeletedAt,
+                            DeletedByUserId = m.DeletedByUserId,
+                            IsRead = m.IsRead,
+                            ReadAt = m.ReadAt
+                        })
+                        .FirstOrDefaultAsync();
+
+                    if (dup != null)
+                        return dup;
+                }
+
+                throw;
+            }
+
+            conversation.LastActivityAt = now;
+            conversation.LastMessageId = message.MessageId;
             await unitOfWork.SaveChangesAsync();
 
             // Load sender name via navigation (may require lazy-loading not enabled) - query explicitly.
@@ -203,12 +287,17 @@ namespace RegMan.Backend.BusinessLayer.Services
                 {
                     MessageId = m.MessageId,
                     ConversationId = m.ConversationId,
-                    Content = m.TextMessage,
+                    ClientMessageId = m.ClientMessageId,
+                    ServerReceivedAt = m.ServerReceivedAt,
+                    Content = m.IsDeletedForEveryone ? "[deleted]" : m.TextMessage,
                     SenderId = m.SenderId,
                     SenderName = m.Sender.FullName,
                     Status = m.Status,
                     Timestamp = m.SentAt
                     ,
+                    IsDeletedForEveryone = m.IsDeletedForEveryone,
+                    DeletedAt = m.DeletedAt,
+                    DeletedByUserId = m.DeletedByUserId,
                     IsRead = m.IsRead
                     ,
                     ReadAt = m.ReadAt
@@ -222,27 +311,43 @@ namespace RegMan.Backend.BusinessLayer.Services
         public async Task<ViewConversationsDTO> GetUserConversationsAsync(string userId)
         {
 
-            var conversations = await participantRepository.GetAllAsQueryable().AsNoTracking()
+            if (string.IsNullOrWhiteSpace(userId))
+                throw new UnauthorizedException();
+
+            var conversations = await participantRepository.GetAllAsQueryable()
+                .AsNoTracking()
                 .Where(cp => cp.UserId == userId)
                 .Select(cp => new ViewConversationSummaryDTO
                 {
                     ConversationId = cp.Conversation.ConversationId,
                     LastMessageSnippet = cp.Conversation.Messages
-                        .OrderByDescending(m => m.SentAt)
-                        .Select(m => m.TextMessage.Length > 30 ? m.TextMessage.Substring(0, 30) + "..." : m.TextMessage)
+                        .Where(m => !messageUserDeletionRepository.GetAllAsQueryable()
+                            .Any(d => d.UserId == userId && d.MessageId == m.MessageId))
+                        .OrderByDescending(m => m.MessageId)
+                        .Select(m =>
+                            m.IsDeletedForEveryone
+                                ? "[deleted]"
+                                : (m.TextMessage.Length > 30 ? m.TextMessage.Substring(0, 30) + "..." : m.TextMessage))
                         .FirstOrDefault() ?? string.Empty,
-                    LastMessageTime = cp.Conversation.Messages
-                        .OrderByDescending(m => m.SentAt)
-                        .Select(m => m.SentAt)
-                        .FirstOrDefault(),
+                    LastMessageTime = (cp.Conversation.LastActivityAt ?? cp.Conversation.Messages
+                        .Where(m => !messageUserDeletionRepository.GetAllAsQueryable()
+                            .Any(d => d.UserId == userId && d.MessageId == m.MessageId))
+                        .OrderByDescending(m => m.MessageId)
+                        .Select(m => (DateTime?)m.SentAt)
+                        .FirstOrDefault()) ?? DateTime.MinValue,
                     ConversationDisplayName = cp.Conversation.Participants
                         .Where(p => p.UserId != userId)
                         .Select(p => p.User.FullName)
-                        .FirstOrDefault() ?? "No Participants"
-                    ,
+                        .FirstOrDefault() ?? "No Participants",
                     UnreadCount = cp.Conversation.Messages
-                        .Count(m => m.SenderId != userId && !m.IsRead)
+                        .Where(m => m.SenderId != userId)
+                        .Where(m => !m.IsDeletedForEveryone)
+                        .Where(m => m.MessageId > (cp.LastReadMessageId ?? 0))
+                        .Where(m => !messageUserDeletionRepository.GetAllAsQueryable()
+                            .Any(d => d.UserId == userId && d.MessageId == m.MessageId))
+                        .Count()
                 })
+                .OrderByDescending(c => c.LastMessageTime)
                 .ToListAsync();
 
             if (conversations == null)
@@ -283,8 +388,11 @@ namespace RegMan.Backend.BusinessLayer.Services
                 throw new ForbiddenException("You are not a participant of this conversation.");
 
             var conversation = allowedConversation;
+
             var msgsQuery = messageRepository.GetAllAsQueryable();
             msgsQuery = msgsQuery.Where(m => m.ConversationId == conversationId);
+            msgsQuery = msgsQuery.Where(m => !messageUserDeletionRepository.GetAllAsQueryable()
+                .Any(d => d.UserId == userId && d.MessageId == m.MessageId));
             msgsQuery = msgsQuery.OrderByDescending(m => m.SentAt)
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
@@ -292,12 +400,17 @@ namespace RegMan.Backend.BusinessLayer.Services
             List<ViewMessageDTO> Messages = await msgsQuery.Select(
                 m => new ViewMessageDTO
                 {
-                    Content = m.TextMessage,
+                    Content = m.IsDeletedForEveryone ? "[deleted]" : m.TextMessage,
                     SenderId = m.SenderId,
                     SenderName = m.Sender.FullName,
                     MessageId = m.MessageId,
+                    ClientMessageId = m.ClientMessageId,
+                    ServerReceivedAt = m.ServerReceivedAt,
                     Status = m.Status,
                     Timestamp = m.SentAt,
+                    IsDeletedForEveryone = m.IsDeletedForEveryone,
+                    DeletedAt = m.DeletedAt,
+                    DeletedByUserId = m.DeletedByUserId,
                     IsRead = m.IsRead,
                     ReadAt = m.ReadAt
                 }
@@ -335,6 +448,85 @@ namespace RegMan.Backend.BusinessLayer.Services
             };
         }
 
+        public async Task<ViewConversationDTO> ViewConversationByCursorAsync(string userId, int conversationId, int? beforeMessageId, int pageSize = 20)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+                throw new UnauthorizedException();
+
+            if (conversationId <= 0)
+                throw new BadRequestException("Conversation ID is required.");
+
+            if (pageSize <= 0 || pageSize > 100)
+                pageSize = 20;
+
+            var allowedConversation = await convoRepository.GetSpecificUserConversationAsync(userId, conversationId);
+            if (allowedConversation is null)
+                throw new ForbiddenException("You are not a participant of this conversation.");
+
+            var msgsQuery = messageRepository.GetAllAsQueryable()
+                .AsNoTracking()
+                .Where(m => m.ConversationId == conversationId)
+                .Where(m => !messageUserDeletionRepository.GetAllAsQueryable()
+                    .Any(d => d.UserId == userId && d.MessageId == m.MessageId));
+
+            if (beforeMessageId.HasValue)
+            {
+                msgsQuery = msgsQuery.Where(m => m.MessageId < beforeMessageId.Value);
+            }
+
+            var page = await msgsQuery
+                .OrderByDescending(m => m.MessageId)
+                .Take(pageSize)
+                .OrderBy(m => m.MessageId)
+                .Select(m => new ViewMessageDTO
+                {
+                    MessageId = m.MessageId,
+                    ConversationId = m.ConversationId,
+                    ClientMessageId = m.ClientMessageId,
+                    ServerReceivedAt = m.ServerReceivedAt,
+                    Content = m.IsDeletedForEveryone ? "[deleted]" : m.TextMessage,
+                    SenderId = m.SenderId,
+                    SenderName = m.Sender.FullName,
+                    Status = m.Status,
+                    Timestamp = m.SentAt,
+                    IsDeletedForEveryone = m.IsDeletedForEveryone,
+                    DeletedAt = m.DeletedAt,
+                    DeletedByUserId = m.DeletedByUserId,
+                    IsRead = m.IsRead,
+                    ReadAt = m.ReadAt
+                })
+                .ToListAsync();
+
+            var participants = await convoRepository.GetConversationParticipantsAsync(conversationId);
+
+            string displayName = string.Empty;
+            if (participants.Distinct().Count() > 2)
+            {
+                if (!string.IsNullOrWhiteSpace(allowedConversation.ConversationName))
+                    displayName = allowedConversation.ConversationName;
+                else
+                {
+                    displayName = string.Join(", ",
+                        allowedConversation.Participants
+                            .Where(p => p.UserId != userId)
+                            .Select(p => p.User.FullName)
+                            .Take(3));
+                }
+            }
+            else
+            {
+                displayName = participants.Where(p => p.UserId != userId).Select(p => p.User.FullName).FirstOrDefault() ?? string.Empty;
+            }
+
+            return new ViewConversationDTO
+            {
+                ConversationId = conversationId,
+                Messages = page,
+                DisplayName = displayName ?? string.Empty,
+                ParticipantIds = participants.Select(p => p.UserId).ToList()
+            };
+        }
+
         public async Task<List<MessageReadReceiptDTO>> MarkConversationMessagesReadAsync(string readerUserId, int conversationId)
         {
             if (string.IsNullOrWhiteSpace(readerUserId))
@@ -350,37 +542,55 @@ namespace RegMan.Backend.BusinessLayer.Services
 
             var readAt = DateTime.UtcNow;
 
-            // Mark as read: messages in this conversation NOT sent by the reader.
-            var unreadQuery = messageRepository.GetAllAsQueryable()
+            var participant = await participantRepository.GetAllAsQueryable()
+                .Where(cp => cp.ConversationId == conversationId && cp.UserId == readerUserId)
+                .FirstOrDefaultAsync();
+
+            if (participant is null)
+                throw new ForbiddenException("You are not a participant of this conversation.");
+
+            var previousLastRead = participant.LastReadMessageId ?? 0;
+
+            var newlyRead = await messageRepository.GetAllAsQueryable()
                 .Where(m => m.ConversationId == conversationId)
                 .Where(m => m.SenderId != readerUserId)
-                .Where(m => !m.IsRead);
-
-            // Load minimal set to update + build receipts.
-            var unread = await unreadQuery
+                .Where(m => !m.IsDeletedForEveryone)
+                .Where(m => m.MessageId > previousLastRead)
+                .Where(m => !messageUserDeletionRepository.GetAllAsQueryable()
+                    .Any(d => d.UserId == readerUserId && d.MessageId == m.MessageId))
                 .Select(m => new { m.MessageId, m.SenderId })
                 .ToListAsync();
 
-            if (unread.Count == 0)
-                return new List<MessageReadReceiptDTO>();
+            var maxMessageId = await messageRepository.GetAllAsQueryable()
+                .Where(m => m.ConversationId == conversationId)
+                .Select(m => (int?)m.MessageId)
+                .MaxAsync();
 
-            // Update entities (EF Core tracks via query; re-query tracked entities).
-            var ids = unread.Select(x => x.MessageId).ToList();
-            var toUpdate = await messageRepository.GetAllAsQueryable()
-                .Where(m => ids.Contains(m.MessageId))
-                .ToListAsync();
+            participant.LastReadMessageId = Math.Max(previousLastRead, maxMessageId ?? previousLastRead);
+            participant.LastReadAt = readAt;
 
-            foreach (var m in toUpdate)
+            // Back-compat for current UI (best-effort): mark messages as read.
+            if (newlyRead.Count > 0)
             {
-                m.IsRead = true;
-                m.ReadAt = readAt;
-                m.Status = MsgStatus.Read;
+                var ids = newlyRead.Select(x => x.MessageId).ToList();
+                var toUpdate = await messageRepository.GetAllAsQueryable()
+                    .Where(m => ids.Contains(m.MessageId))
+                    .ToListAsync();
+
+                foreach (var m in toUpdate)
+                {
+                    if (!m.IsRead)
+                    {
+                        m.IsRead = true;
+                        m.ReadAt = readAt;
+                        m.Status = MsgStatus.Read;
+                    }
+                }
             }
 
             await unitOfWork.SaveChangesAsync();
 
-            // Create one receipt per sender so the hub/controller can notify correct users.
-            var receipts = unread
+            return newlyRead
                 .GroupBy(x => x.SenderId)
                 .Select(g => new MessageReadReceiptDTO
                 {
@@ -391,8 +601,6 @@ namespace RegMan.Backend.BusinessLayer.Services
                     MessageIds = g.Select(x => x.MessageId).ToList()
                 })
                 .ToList();
-
-            return receipts;
         }
         public async Task<List<int>> GetUserConversationIds(string userId)
         {
@@ -401,6 +609,88 @@ namespace RegMan.Backend.BusinessLayer.Services
                 .Select(cp => cp.ConversationId)
                 .ToListAsync();
             return conversationIds;
+        }
+
+        public async Task UpdateUserLastSeenAsync(string userId, DateTime lastSeenAtUtc)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+                return;
+
+            var user = await userManager.FindByIdAsync(userId);
+            if (user is null)
+                return;
+
+            user.LastSeenAt = lastSeenAtUtc;
+            await userManager.UpdateAsync(user);
+        }
+
+        public async Task DeleteMessageForMeAsync(string userId, int conversationId, int messageId)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+                throw new UnauthorizedException();
+
+            if (conversationId <= 0 || messageId <= 0)
+                throw new BadRequestException("Invalid conversation/message.");
+
+            var allowedConversation = await convoRepository.GetSpecificUserConversationAsync(userId, conversationId);
+            if (allowedConversation is null)
+                throw new ForbiddenException("You are not a participant of this conversation.");
+
+            var exists = await messageRepository.GetAllAsQueryable()
+                .AsNoTracking()
+                .AnyAsync(m => m.MessageId == messageId && m.ConversationId == conversationId);
+
+            if (!exists)
+                throw new NotFoundException("Message not found.");
+
+            var already = await messageUserDeletionRepository.GetAllAsQueryable()
+                .AsNoTracking()
+                .AnyAsync(d => d.UserId == userId && d.MessageId == messageId);
+
+            if (already)
+                return;
+
+            await messageUserDeletionRepository.AddAsync(new MessageUserDeletion
+            {
+                MessageId = messageId,
+                UserId = userId,
+                DeletedAt = DateTime.UtcNow
+            });
+
+            await unitOfWork.SaveChangesAsync();
+        }
+
+        public async Task DeleteMessageForEveryoneAsync(string userId, int conversationId, int messageId)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+                throw new UnauthorizedException();
+
+            if (conversationId <= 0 || messageId <= 0)
+                throw new BadRequestException("Invalid conversation/message.");
+
+            var allowedConversation = await convoRepository.GetSpecificUserConversationAsync(userId, conversationId);
+            if (allowedConversation is null)
+                throw new ForbiddenException("You are not a participant of this conversation.");
+
+            var message = await messageRepository.GetAllAsQueryable()
+                .Where(m => m.MessageId == messageId && m.ConversationId == conversationId)
+                .FirstOrDefaultAsync();
+
+            if (message is null)
+                throw new NotFoundException("Message not found.");
+
+            if (message.SenderId != userId)
+                throw new ForbiddenException("Only the sender can delete for everyone.");
+
+            if (message.IsDeletedForEveryone)
+                return;
+
+            message.IsDeletedForEveryone = true;
+            message.DeletedAt = DateTime.UtcNow;
+            message.DeletedByUserId = userId;
+            message.TextMessage = string.Empty;
+
+            await unitOfWork.SaveChangesAsync();
         }
 
     }
