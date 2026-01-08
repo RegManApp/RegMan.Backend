@@ -303,12 +303,12 @@ namespace RegMan.Backend.BusinessLayer.Services
             if (!isConfigured)
                 return;
 
-            // Prefer instructor as organizer (they confirm the booking), fallback to student.
-            var instructorUserId = booking.OfficeHour.Instructor.UserId;
+            // Prefer provider (the one offering the slot) as organizer, fallback to student.
+            var providerUserId = booking.OfficeHour.OwnerUserId;
             var studentUserId = booking.Student.UserId;
 
-            var organizerUserId = await HasGoogleTokenAsync(instructorUserId, cancellationToken)
-                ? instructorUserId
+            var organizerUserId = await HasGoogleTokenAsync(providerUserId, cancellationToken)
+                ? providerUserId
                 : (await HasGoogleTokenAsync(studentUserId, cancellationToken) ? studentUserId : null);
 
             if (organizerUserId == null)
@@ -325,9 +325,26 @@ namespace RegMan.Backend.BusinessLayer.Services
 
                 var description = BuildDescription(booking);
 
+                var providerName = booking.OfficeHour.Instructor?.User.FullName
+                                   ?? booking.OfficeHour.OwnerUser?.FullName
+                                   ?? "Provider";
+
+                var providerEmail = booking.OfficeHour.Instructor?.User.Email
+                                    ?? booking.OfficeHour.OwnerUser?.Email;
+
+                var attendees = new List<EventAttendee>
+                {
+                    new() { Email = booking.Student.User.Email }
+                };
+
+                if (!string.IsNullOrWhiteSpace(providerEmail))
+                {
+                    attendees.Add(new EventAttendee { Email = providerEmail });
+                }
+
                 var newEvent = new Event
                 {
-                    Summary = $"Office Hour with {booking.OfficeHour.Instructor.User.FullName}",
+                    Summary = $"Office Hour with {providerName}",
                     Description = description,
                     Location = booking.OfficeHour.Room != null
                         ? $"{booking.OfficeHour.Room.Building} - {booking.OfficeHour.Room.RoomNumber}"
@@ -342,11 +359,7 @@ namespace RegMan.Backend.BusinessLayer.Services
                         DateTimeDateTimeOffset = new DateTimeOffset(endUtc, TimeSpan.Zero),
                         TimeZone = "UTC"
                     },
-                    Attendees = new List<EventAttendee>
-                    {
-                        new() { Email = booking.Student.User.Email },
-                        new() { Email = booking.OfficeHour.Instructor.User.Email }
-                    }
+                    Attendees = attendees
                 };
 
                 var link = await Db.Set<GoogleCalendarEventLink>()
@@ -560,7 +573,16 @@ namespace RegMan.Backend.BusinessLayer.Services
 
             // Course isn't modeled on OfficeHour currently; keep description useful without inventing data.
             sb.AppendLine($"Booking Id: {booking.BookingId}");
-            sb.AppendLine($"Instructor: {booking.OfficeHour.Instructor.User.FullName} ({booking.OfficeHour.Instructor.User.Email})");
+
+            var providerName = booking.OfficeHour.Instructor?.User.FullName
+                               ?? booking.OfficeHour.OwnerUser?.FullName
+                               ?? "Provider";
+
+            var providerEmail = booking.OfficeHour.Instructor?.User.Email
+                                ?? booking.OfficeHour.OwnerUser?.Email
+                                ?? "";
+
+            sb.AppendLine($"Provider: {providerName} ({providerEmail})");
             sb.AppendLine($"Student: {booking.Student.User.FullName} ({booking.Student.User.Email})");
 
             if (!string.IsNullOrWhiteSpace(booking.Purpose))

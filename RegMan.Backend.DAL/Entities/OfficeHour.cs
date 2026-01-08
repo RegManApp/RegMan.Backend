@@ -19,12 +19,20 @@ namespace RegMan.Backend.DAL.Entities
     {
         public int OfficeHourId { get; set; }
 
+        [Required]
+        public string OwnerUserId { get; set; } = null!;
+
+        [Required]
+        [MaxLength(50)]
+        public string OwnerRole { get; set; } = null!;
+
+        public int Capacity { get; set; } = 1;
+
         // Optional room - office hours can be virtual
         public int? RoomId { get; set; }
 
-        [Required]
         [ForeignKey("Instructor")]
-        public int InstructorId { get; set; }
+        public int? InstructorId { get; set; }
 
         // Specific date and time for the office hour
         [Required]
@@ -52,7 +60,8 @@ namespace RegMan.Backend.DAL.Entities
 
         // Navigation properties
         public Room? Room { get; set; }
-        public InstructorProfile Instructor { get; set; } = null!;
+        public BaseUser OwnerUser { get; set; } = null!;
+        public InstructorProfile? Instructor { get; set; }
         public ICollection<OfficeHourBooking> Bookings { get; set; } = new List<OfficeHourBooking>();
     }
 }

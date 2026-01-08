@@ -23,6 +23,9 @@ namespace RegMan.Backend.DAL.DataContext
         public DbSet<MessageUserDeletion> MessageUserDeletions { get; set; }
         public DbSet<GoogleCalendarUserToken> GoogleCalendarUserTokens { get; set; }
 
+        public DbSet<Announcement> Announcements { get; set; }
+        public DbSet<AnnouncementRecipient> AnnouncementRecipients { get; set; }
+
         public DbSet<GoogleCalendarEventLink> GoogleCalendarEventLinks { get; set; }
 
         public DbSet<UserCalendarPreferences> UserCalendarPreferences { get; set; }
@@ -177,6 +180,43 @@ namespace RegMan.Backend.DAL.DataContext
 
             modelBuilder.Entity<MessageUserDeletion>()
                 .HasIndex(x => new { x.UserId, x.MessageId });
+
+            modelBuilder.Entity<Announcement>()
+                .HasOne(a => a.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(a => a.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Announcement>()
+                .HasOne(a => a.Course)
+                .WithMany()
+                .HasForeignKey(a => a.CourseId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Announcement>()
+                .HasOne(a => a.Section)
+                .WithMany()
+                .HasForeignKey(a => a.SectionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<AnnouncementRecipient>()
+                .HasOne(r => r.Announcement)
+                .WithMany(a => a.Recipients)
+                .HasForeignKey(r => r.AnnouncementId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<AnnouncementRecipient>()
+                .HasOne(r => r.RecipientUser)
+                .WithMany()
+                .HasForeignKey(r => r.RecipientUserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<AnnouncementRecipient>()
+                .HasIndex(r => new { r.AnnouncementId, r.RecipientUserId })
+                .IsUnique();
+
+            modelBuilder.Entity<Announcement>()
+                .HasIndex(a => new { a.CreatedAt, a.IsArchived });
 
             // ============================
             // 2. ONE-TO-MANY RELATIONSHIPS
@@ -346,10 +386,17 @@ namespace RegMan.Backend.DAL.DataContext
                 .OnDelete(DeleteBehavior.Restrict); // Changed from Cascade to Restrict to avoid multiple cascade paths
 
             modelBuilder.Entity<OfficeHour>()
+
+                .HasOne(oh => oh.OwnerUser)
+                .WithMany()
+                .HasForeignKey(oh => oh.OwnerUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OfficeHour>()
                 .HasOne(oh => oh.Instructor)
                 .WithMany(i => i.OfficeHours)
                 .HasForeignKey(oh => oh.InstructorId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.SetNull);
 
             // ============================
             // 5. NOTIFICATION RELATIONSHIPS

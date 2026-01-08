@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using RegMan.Backend.BusinessLayer.Common;
 using RegMan.Backend.BusinessLayer.Contracts;
 using RegMan.Backend.BusinessLayer.DTOs.ChattingDTO;
 using RegMan.Backend.BusinessLayer.Exceptions;
@@ -24,6 +25,12 @@ namespace RegMan.Backend.BusinessLayer.Services
             this.messageRepository = unitOfWork.Messages;
             this.participantRepository = unitOfWork.ConversationParticipants;
             this.messageUserDeletionRepository = unitOfWork.MessageUserDeletions;
+        }
+
+        private static bool IsAnnouncementsConversation(Conversation? conversation)
+        {
+            return conversation != null
+                   && string.Equals(conversation.ConversationName, SystemUserConstants.AnnouncementsConversationName, StringComparison.Ordinal);
         }
 
         private async Task<Conversation> CreateConversationAsync(List<string> userIds)
@@ -112,6 +119,32 @@ namespace RegMan.Backend.BusinessLayer.Services
             return await ViewConversationAsync(userId, created.ConversationId, pageNumber, pageSize);
         }
 
+        public Task<ViewConversationDTO> GetOrCreateAnnouncementsConversationAsync(string userId, int pageNumber = 1, int pageSize = 20)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+                throw new UnauthorizedException();
+
+            // Dedicated announcements channel for the user.
+            return GetOrCreateAnnouncementsConversationInternalAsync(userId, pageNumber, pageSize);
+        }
+
+        private async Task<ViewConversationDTO> GetOrCreateAnnouncementsConversationInternalAsync(string userId, int pageNumber, int pageSize)
+        {
+            var convo = await convoRepository.GetConversationByParticipantsAsync(SystemUserConstants.SystemUserId, userId);
+            if (convo == null)
+            {
+                convo = await CreateConversationAsync(new List<string> { SystemUserConstants.SystemUserId, userId });
+            }
+
+            if (!string.Equals(convo.ConversationName, SystemUserConstants.AnnouncementsConversationName, StringComparison.Ordinal))
+            {
+                convo.ConversationName = SystemUserConstants.AnnouncementsConversationName;
+                await unitOfWork.SaveChangesAsync();
+            }
+
+            return await ViewConversationAsync(userId, convo.ConversationId, pageNumber, pageSize);
+        }
+
         //send a message to a user
         public async Task<ViewConversationDTO> SendMessageAsync(string senderId, string? recieverId, int? conversationId, string textMessage)
         {
@@ -185,6 +218,9 @@ namespace RegMan.Backend.BusinessLayer.Services
             if (conversation is null)
                 throw new NotFoundException("Conversation not found.");
 
+            if (IsAnnouncementsConversation(conversation) && senderId != SystemUserConstants.SystemUserId)
+                throw new ForbiddenException("This conversation is read-only.");
+
             var participants = await convoRepository.GetConversationParticipantsAsync(conversationId);
             if (!participants.Any(p => p.UserId == senderId))
                 throw new ForbiddenException("Sender is not a participant of the conversation.");
@@ -206,6 +242,8 @@ namespace RegMan.Backend.BusinessLayer.Services
                         Content = m.IsDeletedForEveryone ? "[deleted]" : m.TextMessage,
                         SenderId = m.SenderId,
                         SenderName = m.Sender.FullName,
+                        SenderRole = m.Sender.Role,
+                        IsSystem = m.Sender.Role == SystemUserConstants.SystemRole,
                         Status = m.Status,
                         Timestamp = m.SentAt,
                         IsDeletedForEveryone = m.IsDeletedForEveryone,
@@ -258,6 +296,8 @@ namespace RegMan.Backend.BusinessLayer.Services
                             Content = m.IsDeletedForEveryone ? "[deleted]" : m.TextMessage,
                             SenderId = m.SenderId,
                             SenderName = m.Sender.FullName,
+                            SenderRole = m.Sender.Role,
+                            IsSystem = m.Sender.Role == SystemUserConstants.SystemRole,
                             Status = m.Status,
                             Timestamp = m.SentAt,
                             IsDeletedForEveryone = m.IsDeletedForEveryone,
@@ -292,6 +332,8 @@ namespace RegMan.Backend.BusinessLayer.Services
                     Content = m.IsDeletedForEveryone ? "[deleted]" : m.TextMessage,
                     SenderId = m.SenderId,
                     SenderName = m.Sender.FullName,
+                    SenderRole = m.Sender.Role,
+                    IsSystem = m.Sender.Role == SystemUserConstants.SystemRole,
                     Status = m.Status,
                     Timestamp = m.SentAt
                     ,
@@ -305,6 +347,98 @@ namespace RegMan.Backend.BusinessLayer.Services
                 .FirstAsync();
 
             return dto;
+        }
+
+        public async Task<ViewMessageDTO> SendSystemMessageToConversationAsync(int conversationId, string textMessage, string? clientMessageId = null)
+        {
+            if (conversationId <= 0)
+                throw new BadRequestException("Conversation ID is required.");
+
+            if (string.IsNullOrWhiteSpace(textMessage))
+                throw new BadRequestException("Message content is required.");
+
+            var conversation = await convoRepository.GetByIdAsync(conversationId);
+            if (conversation is null)
+                throw new NotFoundException("Conversation not found.");
+
+            var systemUser = await userManager.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == SystemUserConstants.SystemUserId);
+            if (systemUser == null)
+                throw new NotFoundException("System user not found.");
+
+            clientMessageId = string.IsNullOrWhiteSpace(clientMessageId) ? null : clientMessageId.Trim();
+
+            if (!string.IsNullOrWhiteSpace(clientMessageId))
+            {
+                var existing = await messageRepository.GetAllAsQueryable()
+                    .AsNoTracking()
+                    .Where(m => m.ConversationId == conversationId)
+                    .Where(m => m.SenderId == SystemUserConstants.SystemUserId)
+                    .Where(m => m.ClientMessageId == clientMessageId)
+                    .Select(m => new ViewMessageDTO
+                    {
+                        MessageId = m.MessageId,
+                        ConversationId = m.ConversationId,
+                        ClientMessageId = m.ClientMessageId,
+                        ServerReceivedAt = m.ServerReceivedAt,
+                        Content = m.IsDeletedForEveryone ? "[deleted]" : m.TextMessage,
+                        SenderId = m.SenderId,
+                        SenderName = systemUser.FullName,
+                        SenderRole = systemUser.Role,
+                        IsSystem = true,
+                        Status = m.Status,
+                        Timestamp = m.SentAt,
+                        IsDeletedForEveryone = m.IsDeletedForEveryone,
+                        DeletedAt = m.DeletedAt,
+                        DeletedByUserId = m.DeletedByUserId,
+                        IsRead = m.IsRead,
+                        ReadAt = m.ReadAt
+                    })
+                    .FirstOrDefaultAsync();
+
+                if (existing != null)
+                    return existing;
+            }
+
+            var now = DateTime.UtcNow;
+            var message = new Message
+            {
+                SenderId = SystemUserConstants.SystemUserId,
+                ConversationId = conversationId,
+                TextMessage = textMessage,
+                SentAt = now,
+                ServerReceivedAt = now,
+                ClientMessageId = clientMessageId,
+                Status = MsgStatus.Sent,
+                IsRead = false,
+                ReadAt = null
+            };
+
+            await messageRepository.AddAsync(message);
+            await unitOfWork.SaveChangesAsync();
+
+            conversation.LastActivityAt = now;
+            conversation.LastMessageId = message.MessageId;
+            await unitOfWork.SaveChangesAsync();
+
+            return new ViewMessageDTO
+            {
+                MessageId = message.MessageId,
+                ConversationId = message.ConversationId,
+                ClientMessageId = message.ClientMessageId,
+                ServerReceivedAt = message.ServerReceivedAt,
+                Content = message.TextMessage,
+                SenderId = SystemUserConstants.SystemUserId,
+                SenderName = systemUser.FullName,
+                SenderRole = systemUser.Role,
+                IsSystem = true,
+                Status = message.Status,
+                Timestamp = message.SentAt,
+                IsDeletedForEveryone = message.IsDeletedForEveryone,
+                DeletedAt = message.DeletedAt,
+                DeletedByUserId = message.DeletedByUserId,
+                IsRead = message.IsRead,
+                ReadAt = message.ReadAt
+            };
         }
 
         //View all user conversations
@@ -403,6 +537,8 @@ namespace RegMan.Backend.BusinessLayer.Services
                     Content = m.IsDeletedForEveryone ? "[deleted]" : m.TextMessage,
                     SenderId = m.SenderId,
                     SenderName = m.Sender.FullName,
+                    SenderRole = m.Sender.Role,
+                    IsSystem = m.Sender.Role == SystemUserConstants.SystemRole,
                     MessageId = m.MessageId,
                     ClientMessageId = m.ClientMessageId,
                     ServerReceivedAt = m.ServerReceivedAt,
@@ -487,6 +623,8 @@ namespace RegMan.Backend.BusinessLayer.Services
                     Content = m.IsDeletedForEveryone ? "[deleted]" : m.TextMessage,
                     SenderId = m.SenderId,
                     SenderName = m.Sender.FullName,
+                    SenderRole = m.Sender.Role,
+                    IsSystem = m.Sender.Role == SystemUserConstants.SystemRole,
                     Status = m.Status,
                     Timestamp = m.SentAt,
                     IsDeletedForEveryone = m.IsDeletedForEveryone,
@@ -643,6 +781,13 @@ namespace RegMan.Backend.BusinessLayer.Services
             if (!exists)
                 throw new NotFoundException("Message not found.");
 
+            var isSystem = await messageRepository.GetAllAsQueryable()
+                .AsNoTracking()
+                .AnyAsync(m => m.MessageId == messageId && m.ConversationId == conversationId && m.SenderId == SystemUserConstants.SystemUserId);
+
+            if (isSystem)
+                throw new ForbiddenException("System messages cannot be deleted.");
+
             var already = await messageUserDeletionRepository.GetAllAsQueryable()
                 .AsNoTracking()
                 .AnyAsync(d => d.UserId == userId && d.MessageId == messageId);
@@ -678,6 +823,9 @@ namespace RegMan.Backend.BusinessLayer.Services
 
             if (message is null)
                 throw new NotFoundException("Message not found.");
+
+            if (message.SenderId == SystemUserConstants.SystemUserId)
+                throw new ForbiddenException("System messages cannot be deleted.");
 
             if (message.SenderId != userId)
                 throw new ForbiddenException("Only the sender can delete for everyone.");

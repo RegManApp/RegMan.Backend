@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using RegMan.Backend.DAL.DataContext;
 
@@ -11,9 +12,11 @@ using RegMan.Backend.DAL.DataContext;
 namespace RegMan.Backend.DAL.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260108005134_AddOfficeHoursRoleAgnosticOwners")]
+    partial class AddOfficeHoursRoleAgnosticOwners
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -280,99 +283,6 @@ namespace RegMan.Backend.DAL.Migrations
                         .IsUnique();
 
                     b.ToTable("Admins");
-                });
-
-            modelBuilder.Entity("RegMan.Backend.DAL.Entities.Announcement", b =>
-                {
-                    b.Property<int>("AnnouncementId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AnnouncementId"));
-
-                    b.Property<DateTime?>("ArchivedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("ArchivedByUserId")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("CourseId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CreatedByRole")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("CreatedByUserId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<bool>("IsArchived")
-                        .HasColumnType("bit");
-
-                    b.Property<int?>("SectionId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("TargetRoles")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("TargetType")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.HasKey("AnnouncementId");
-
-                    b.HasIndex("CourseId");
-
-                    b.HasIndex("CreatedByUserId");
-
-                    b.HasIndex("SectionId");
-
-                    b.HasIndex("CreatedAt", "IsArchived");
-
-                    b.ToTable("Announcements");
-                });
-
-            modelBuilder.Entity("RegMan.Backend.DAL.Entities.AnnouncementRecipient", b =>
-                {
-                    b.Property<int>("AnnouncementRecipientId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AnnouncementRecipientId"));
-
-                    b.Property<int>("AnnouncementId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("DeliveredAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("ReadAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("RecipientUserId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.HasKey("AnnouncementRecipientId");
-
-                    b.HasIndex("RecipientUserId");
-
-                    b.HasIndex("AnnouncementId", "RecipientUserId")
-                        .IsUnique();
-
-                    b.ToTable("AnnouncementRecipients");
                 });
 
             modelBuilder.Entity("RegMan.Backend.DAL.Entities.AuditLog", b =>
@@ -1564,50 +1474,6 @@ namespace RegMan.Backend.DAL.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("RegMan.Backend.DAL.Entities.Announcement", b =>
-                {
-                    b.HasOne("RegMan.Backend.DAL.Entities.Course", "Course")
-                        .WithMany()
-                        .HasForeignKey("CourseId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("RegMan.Backend.DAL.Entities.BaseUser", "CreatedByUser")
-                        .WithMany()
-                        .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("RegMan.Backend.DAL.Entities.Section", "Section")
-                        .WithMany()
-                        .HasForeignKey("SectionId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Course");
-
-                    b.Navigation("CreatedByUser");
-
-                    b.Navigation("Section");
-                });
-
-            modelBuilder.Entity("RegMan.Backend.DAL.Entities.AnnouncementRecipient", b =>
-                {
-                    b.HasOne("RegMan.Backend.DAL.Entities.Announcement", "Announcement")
-                        .WithMany("Recipients")
-                        .HasForeignKey("AnnouncementId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("RegMan.Backend.DAL.Entities.BaseUser", "RecipientUser")
-                        .WithMany()
-                        .HasForeignKey("RecipientUserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Announcement");
-
-                    b.Navigation("RecipientUser");
-                });
-
             modelBuilder.Entity("RegMan.Backend.DAL.Entities.Calendar.UserCalendarPreferences", b =>
                 {
                     b.HasOne("RegMan.Backend.DAL.Entities.BaseUser", "User")
@@ -1937,11 +1803,6 @@ namespace RegMan.Backend.DAL.Migrations
                     b.Navigation("AcademicPlanCourses");
 
                     b.Navigation("Students");
-                });
-
-            modelBuilder.Entity("RegMan.Backend.DAL.Entities.Announcement", b =>
-                {
-                    b.Navigation("Recipients");
                 });
 
             modelBuilder.Entity("RegMan.Backend.DAL.Entities.BaseUser", b =>

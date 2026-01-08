@@ -17,6 +17,8 @@ namespace RegMan.Backend.DAL.Entities
         // Calendar-driven reminders (in-app only for now)
         ClassReminder = 7,
         DeadlineReminder = 8
+        ,
+        Announcement = 9
     }
 
     public class Notification

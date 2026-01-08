@@ -27,11 +27,18 @@ namespace RegMan.Backend.BusinessLayer.Contracts
         // Student
         Task<List<StudentAvailableOfficeHourDTO>> GetAvailableOfficeHoursAsync(int? instructorId, DateTime? fromDate, DateTime? toDate);
         Task<List<StudentInstructorsWithOfficeHoursDTO>> GetInstructorsWithOfficeHoursAsync();
-        Task<int> BookOfficeHourAsync(string studentUserId, int officeHourId, BookOfficeHourRequestDTO dto);
+        Task<BookOfficeHourResultDTO> BookOfficeHourAsync(string studentUserId, int officeHourId, BookOfficeHourRequestDTO dto);
         Task<List<StudentBookingListItemDTO>> GetMyBookingsAsync(string studentUserId, string? status);
+
+        // Student (role-agnostic providers)
+        Task<List<StudentProvidersWithOfficeHoursDTO>> GetProvidersWithOfficeHoursAsync();
+        Task<List<StudentAvailableOfficeHourV2DTO>> GetAvailableOfficeHoursV2Async(string? providerUserId, DateTime? fromDate, DateTime? toDate);
 
         // Student/Instructor
         Task CancelBookingAsync(string userId, string userRole, int bookingId, string? reason);
+
+        // Student/Instructor/Admin
+        Task<RescheduleOfficeHourBookingResultDTO> RescheduleBookingAsync(string userId, string userRole, int bookingId, int newOfficeHourId, string? reason);
 
     }
 }

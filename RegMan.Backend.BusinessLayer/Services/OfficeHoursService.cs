@@ -16,6 +16,8 @@ namespace RegMan.Backend.BusinessLayer.Services
     {
         private readonly IUnitOfWork unitOfWork;
         private readonly INotificationService notificationService;
+        private readonly IChatService chatService;
+        private readonly IChatRealtimePublisher chatRealtimePublisher;
         private readonly IGoogleCalendarIntegrationService googleCalendarIntegrationService;
         private readonly ICalendarReminderEngine calendarReminderEngine;
         private readonly ILogger<OfficeHoursService> logger;
@@ -24,17 +26,32 @@ namespace RegMan.Backend.BusinessLayer.Services
         public OfficeHoursService(
             IUnitOfWork unitOfWork,
             INotificationService notificationService,
+            IChatService chatService,
+            IChatRealtimePublisher chatRealtimePublisher,
             IGoogleCalendarIntegrationService googleCalendarIntegrationService,
             ICalendarReminderEngine calendarReminderEngine,
             ILogger<OfficeHoursService> logger)
         {
             this.unitOfWork = unitOfWork;
             this.notificationService = notificationService;
+            this.chatService = chatService;
+            this.chatRealtimePublisher = chatRealtimePublisher;
             this.googleCalendarIntegrationService = googleCalendarIntegrationService;
             this.calendarReminderEngine = calendarReminderEngine;
             this.logger = logger;
             this.officeHoursRepository = unitOfWork.OfficeHours;
             this.instructorsRepository = unitOfWork.InstructorProfiles;
+        }
+
+        private static string BuildBookingSystemMessage(string titleLine, OfficeHour officeHour)
+        {
+            var date = officeHour.Date.ToString("yyyy-MM-dd");
+            var time = $"{officeHour.StartTime:hh\\:mm} - {officeHour.EndTime:hh\\:mm}";
+            var location = officeHour.Room != null
+                ? $"{officeHour.Room.Building} - {officeHour.Room.RoomNumber}"
+                : "(no location)";
+
+            return $"{titleLine}\nDate: {date}\nTime: {time}\nLocation: {location}";
         }
 
         private DbContext Db => unitOfWork.Context;
@@ -49,7 +66,7 @@ namespace RegMan.Backend.BusinessLayer.Services
                 {
                     OfficeHoursId = oh.OfficeHourId,
                     RoomId = oh.RoomId,
-                    InstructorId = oh.InstructorId,
+                    InstructorId = oh.InstructorId!.Value,
                     Date = oh.Date,
                     StartTime = oh.StartTime.ToString(@"hh\:mm"),
                     EndTime = oh.EndTime.ToString(@"hh\:mm"),
@@ -140,6 +157,9 @@ namespace RegMan.Backend.BusinessLayer.Services
             //all are valid, create office hour
             OfficeHour officeHour = new OfficeHour
             {
+                OwnerUserId = instructor.UserId,
+                OwnerRole = "Instructor",
+                Capacity = 1,
                 InstructorId = hoursDTO.InstructorId,
                 RoomId = hoursDTO.RoomId,
                 Date = hoursDTO.Date.Date,
@@ -156,7 +176,7 @@ namespace RegMan.Backend.BusinessLayer.Services
             {
                 OfficeHoursId = officeHour.OfficeHourId,
                 RoomId = officeHour.RoomId,
-                InstructorId = officeHour.InstructorId,
+                InstructorId = officeHour.InstructorId!.Value,
                 Date = officeHour.Date,
                 StartTime = officeHour.StartTime.ToString(@"hh\:mm"),
                 EndTime = officeHour.EndTime.ToString(@"hh\:mm"),
@@ -170,18 +190,22 @@ namespace RegMan.Backend.BusinessLayer.Services
 
         public async Task<List<InstructorOfficeHourListItemDTO>> GetMyOfficeHoursAsync(string instructorUserId, DateTime? fromDate, DateTime? toDate)
         {
-            var instructor = await Db.Set<InstructorProfile>()
-                .FirstOrDefaultAsync(i => i.UserId == instructorUserId);
+            var owner = await Db.Set<BaseUser>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == instructorUserId);
 
-            if (instructor == null)
-                throw new NotFoundException("Instructor profile not found");
+            if (owner == null)
+                throw new NotFoundException("User not found");
+
+            if (string.Equals(owner.Role, "Student", StringComparison.OrdinalIgnoreCase))
+                throw new ForbiddenException("Students cannot manage office hours");
 
             var query = Db.Set<OfficeHour>()
                 .Include(oh => oh.Room)
                 .Include(oh => oh.Bookings)
                     .ThenInclude(b => b.Student)
                         .ThenInclude(s => s.User)
-                .Where(oh => oh.InstructorId == instructor.InstructorId);
+                .Where(oh => oh.OwnerUserId == instructorUserId);
 
             if (fromDate.HasValue)
                 query = query.Where(oh => oh.Date >= fromDate.Value.Date);
@@ -223,11 +247,27 @@ namespace RegMan.Backend.BusinessLayer.Services
 
         public async Task<int> CreateOfficeHourAsync(string instructorUserId, CreateInstructorOfficeHourDTO dto)
         {
-            var instructor = await Db.Set<InstructorProfile>()
-                .FirstOrDefaultAsync(i => i.UserId == instructorUserId);
+            var owner = await Db.Set<BaseUser>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == instructorUserId);
 
-            if (instructor == null)
-                throw new NotFoundException("Instructor profile not found");
+            if (owner == null)
+                throw new NotFoundException("User not found");
+
+            if (string.Equals(owner.Role, "Student", StringComparison.OrdinalIgnoreCase))
+                throw new ForbiddenException("Students cannot create office hours");
+
+            int? instructorId = null;
+            if (string.Equals(owner.Role, "Instructor", StringComparison.OrdinalIgnoreCase))
+            {
+                instructorId = await Db.Set<InstructorProfile>()
+                    .Where(i => i.UserId == instructorUserId)
+                    .Select(i => (int?)i.InstructorId)
+                    .FirstOrDefaultAsync();
+
+                if (instructorId == null)
+                    throw new NotFoundException("Instructor profile not found");
+            }
 
             if (!TimeSpan.TryParse(dto.StartTime, out var startTime) ||
                 !TimeSpan.TryParse(dto.EndTime, out var endTime))
@@ -239,7 +279,7 @@ namespace RegMan.Backend.BusinessLayer.Services
                 throw new BadRequestException("End time must be after start time");
 
             var hasOverlap = await Db.Set<OfficeHour>()
-                .AnyAsync(oh => oh.InstructorId == instructor.InstructorId &&
+                .AnyAsync(oh => oh.OwnerUserId == instructorUserId &&
                                oh.Date.Date == dto.Date.Date &&
                                oh.Status != OfficeHourStatus.Cancelled &&
                                ((startTime >= oh.StartTime && startTime < oh.EndTime) ||
@@ -251,7 +291,10 @@ namespace RegMan.Backend.BusinessLayer.Services
 
             var officeHour = new OfficeHour
             {
-                InstructorId = instructor.InstructorId,
+                OwnerUserId = instructorUserId,
+                OwnerRole = owner.Role,
+                Capacity = 1,
+                InstructorId = instructorId,
                 Date = dto.Date.Date,
                 StartTime = startTime,
                 EndTime = endTime,
@@ -269,11 +312,27 @@ namespace RegMan.Backend.BusinessLayer.Services
 
         public async Task<(List<int> createdIds, List<string> errors)> CreateBatchOfficeHoursAsync(string instructorUserId, List<CreateInstructorOfficeHourDTO> dtos)
         {
-            var instructor = await Db.Set<InstructorProfile>()
-                .FirstOrDefaultAsync(i => i.UserId == instructorUserId);
+            var owner = await Db.Set<BaseUser>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == instructorUserId);
 
-            if (instructor == null)
-                throw new NotFoundException("Instructor profile not found");
+            if (owner == null)
+                throw new NotFoundException("User not found");
+
+            if (string.Equals(owner.Role, "Student", StringComparison.OrdinalIgnoreCase))
+                throw new ForbiddenException("Students cannot create office hours");
+
+            int? instructorId = null;
+            if (string.Equals(owner.Role, "Instructor", StringComparison.OrdinalIgnoreCase))
+            {
+                instructorId = await Db.Set<InstructorProfile>()
+                    .Where(i => i.UserId == instructorUserId)
+                    .Select(i => (int?)i.InstructorId)
+                    .FirstOrDefaultAsync();
+
+                if (instructorId == null)
+                    throw new NotFoundException("Instructor profile not found");
+            }
 
             var createdIds = new List<int>();
             var errors = new List<string>();
@@ -295,7 +354,10 @@ namespace RegMan.Backend.BusinessLayer.Services
 
                 var officeHour = new OfficeHour
                 {
-                    InstructorId = instructor.InstructorId,
+                    OwnerUserId = instructorUserId,
+                    OwnerRole = owner.Role,
+                    Capacity = 1,
+                    InstructorId = instructorId,
                     Date = dto.Date.Date,
                     StartTime = startTime,
                     EndTime = endTime,
@@ -316,15 +378,19 @@ namespace RegMan.Backend.BusinessLayer.Services
 
         public async Task UpdateOfficeHourAsync(string instructorUserId, int officeHourId, UpdateInstructorOfficeHourDTO dto)
         {
-            var instructor = await Db.Set<InstructorProfile>()
-                .FirstOrDefaultAsync(i => i.UserId == instructorUserId);
+            var owner = await Db.Set<BaseUser>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == instructorUserId);
 
-            if (instructor == null)
-                throw new NotFoundException("Instructor profile not found");
+            if (owner == null)
+                throw new NotFoundException("User not found");
+
+            if (string.Equals(owner.Role, "Student", StringComparison.OrdinalIgnoreCase))
+                throw new ForbiddenException("Students cannot update office hours");
 
             var officeHour = await Db.Set<OfficeHour>()
                 .Include(oh => oh.Bookings)
-                .FirstOrDefaultAsync(oh => oh.OfficeHourId == officeHourId && oh.InstructorId == instructor.InstructorId);
+                .FirstOrDefaultAsync(oh => oh.OfficeHourId == officeHourId && oh.OwnerUserId == instructorUserId);
 
             if (officeHour == null)
                 throw new NotFoundException("Office hour not found");
@@ -353,15 +419,19 @@ namespace RegMan.Backend.BusinessLayer.Services
 
         public async Task DeleteOfficeHourAsync(string instructorUserId, int officeHourId)
         {
-            var instructor = await Db.Set<InstructorProfile>()
-                .FirstOrDefaultAsync(i => i.UserId == instructorUserId);
+            var owner = await Db.Set<BaseUser>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == instructorUserId);
 
-            if (instructor == null)
-                throw new NotFoundException("Instructor profile not found");
+            if (owner == null)
+                throw new NotFoundException("User not found");
+
+            if (string.Equals(owner.Role, "Student", StringComparison.OrdinalIgnoreCase))
+                throw new ForbiddenException("Students cannot delete office hours");
 
             var officeHour = await Db.Set<OfficeHour>()
                 .Include(oh => oh.Bookings)
-                .FirstOrDefaultAsync(oh => oh.OfficeHourId == officeHourId && oh.InstructorId == instructor.InstructorId);
+                .FirstOrDefaultAsync(oh => oh.OfficeHourId == officeHourId && oh.OwnerUserId == instructorUserId);
 
             if (officeHour == null)
                 throw new NotFoundException("Office hour not found");
@@ -369,8 +439,8 @@ namespace RegMan.Backend.BusinessLayer.Services
             foreach (var booking in officeHour.Bookings.Where(b => b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed))
             {
                 booking.Status = BookingStatus.Cancelled;
-                booking.CancellationReason = "Office hour was cancelled by instructor";
-                booking.CancelledBy = "Instructor";
+                booking.CancellationReason = "Office hour was cancelled by provider";
+                booking.CancelledBy = owner.Role;
                 booking.CancelledAt = DateTime.UtcNow;
 
                 try
@@ -390,7 +460,7 @@ namespace RegMan.Backend.BusinessLayer.Services
                 {
                     await notificationService.CreateOfficeHourCancelledNotificationAsync(
                         userId: student.UserId,
-                        cancelledBy: "Instructor",
+                        cancelledBy: owner.FullName,
                         date: officeHour.Date,
                         startTime: officeHour.StartTime,
                         reason: booking.CancellationReason
@@ -413,21 +483,24 @@ namespace RegMan.Backend.BusinessLayer.Services
 
         public async Task ConfirmBookingAsync(string instructorUserId, int bookingId)
         {
-            var instructor = await Db.Set<InstructorProfile>()
-                .FirstOrDefaultAsync(i => i.UserId == instructorUserId);
+            var owner = await Db.Set<BaseUser>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == instructorUserId);
 
-            if (instructor == null)
-                throw new NotFoundException("Instructor profile not found");
+            if (owner == null)
+                throw new NotFoundException("User not found");
+
+            if (string.Equals(owner.Role, "Student", StringComparison.OrdinalIgnoreCase))
+                throw new ForbiddenException("Students cannot confirm bookings");
 
             var booking = await Db.Set<OfficeHourBooking>()
                 .Include(b => b.OfficeHour)
-                    .ThenInclude(oh => oh.Instructor)
-                        .ThenInclude(i => i.User)
+                    .ThenInclude(oh => oh.OwnerUser)
                 .Include(b => b.OfficeHour)
                     .ThenInclude(oh => oh.Room)
                 .Include(b => b.Student)
                     .ThenInclude(s => s.User)
-                .FirstOrDefaultAsync(b => b.BookingId == bookingId && b.OfficeHour.InstructorId == instructor.InstructorId);
+                .FirstOrDefaultAsync(b => b.BookingId == bookingId && b.OfficeHour.OwnerUserId == instructorUserId);
 
             if (booking == null)
                 throw new NotFoundException("Booking not found");
@@ -443,7 +516,7 @@ namespace RegMan.Backend.BusinessLayer.Services
 
             await notificationService.CreateOfficeHourConfirmedNotificationAsync(
                 studentUserId: booking.Student.UserId,
-                instructorName: booking.OfficeHour.Instructor.User.FullName,
+                instructorName: booking.OfficeHour.OwnerUser.FullName,
                 date: booking.OfficeHour.Date,
                 startTime: booking.OfficeHour.StartTime
             );
@@ -452,7 +525,7 @@ namespace RegMan.Backend.BusinessLayer.Services
             {
                 // Best-effort: schedule in-app reminders for both participants.
                 await calendarReminderEngine.EnsurePlannedForUserAsync(booking.Student.UserId, DateTime.UtcNow, CancellationToken.None);
-                await calendarReminderEngine.EnsurePlannedForUserAsync(booking.OfficeHour.Instructor.UserId, DateTime.UtcNow, CancellationToken.None);
+                await calendarReminderEngine.EnsurePlannedForUserAsync(booking.OfficeHour.OwnerUserId, DateTime.UtcNow, CancellationToken.None);
             }
             catch (Exception ex)
             {
@@ -468,19 +541,35 @@ namespace RegMan.Backend.BusinessLayer.Services
             {
                 logger.LogError(ex, "Google Calendar integration failed for BookingId={BookingId}", booking.BookingId);
             }
+
+            var conversation = await chatService.GetOrCreateDirectConversationAsync(booking.Student.UserId, booking.OfficeHour.OwnerUserId, pageNumber: 1, pageSize: 1);
+            await chatRealtimePublisher.PublishConversationCreatedAsync(booking.Student.UserId, conversation.ConversationId);
+            await chatRealtimePublisher.PublishConversationCreatedAsync(booking.OfficeHour.OwnerUserId, conversation.ConversationId);
+
+            var messageText = BuildBookingSystemMessage("✅ Office hour booking confirmed", booking.OfficeHour);
+            var systemMessage = await chatService.SendSystemMessageToConversationAsync(
+                conversationId: conversation.ConversationId,
+                textMessage: messageText,
+                clientMessageId: $"officehour-booking:{booking.BookingId}:confirmed");
+
+            await chatRealtimePublisher.PublishSystemMessageCreatedAsync(conversation.ConversationId, systemMessage);
         }
 
         public async Task AddInstructorNotesAsync(string instructorUserId, int bookingId, string? notes)
         {
-            var instructor = await Db.Set<InstructorProfile>()
-                .FirstOrDefaultAsync(i => i.UserId == instructorUserId);
+            var owner = await Db.Set<BaseUser>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == instructorUserId);
 
-            if (instructor == null)
-                throw new NotFoundException("Instructor profile not found");
+            if (owner == null)
+                throw new NotFoundException("User not found");
+
+            if (string.Equals(owner.Role, "Student", StringComparison.OrdinalIgnoreCase))
+                throw new ForbiddenException("Students cannot add notes");
 
             var booking = await Db.Set<OfficeHourBooking>()
                 .Include(b => b.OfficeHour)
-                .FirstOrDefaultAsync(b => b.BookingId == bookingId && b.OfficeHour.InstructorId == instructor.InstructorId);
+                .FirstOrDefaultAsync(b => b.BookingId == bookingId && b.OfficeHour.OwnerUserId == instructorUserId);
 
             if (booking == null)
                 throw new NotFoundException("Booking not found");
@@ -491,15 +580,19 @@ namespace RegMan.Backend.BusinessLayer.Services
 
         public async Task CompleteBookingAsync(string instructorUserId, int bookingId)
         {
-            var instructor = await Db.Set<InstructorProfile>()
-                .FirstOrDefaultAsync(i => i.UserId == instructorUserId);
+            var owner = await Db.Set<BaseUser>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == instructorUserId);
 
-            if (instructor == null)
-                throw new NotFoundException("Instructor profile not found");
+            if (owner == null)
+                throw new NotFoundException("User not found");
+
+            if (string.Equals(owner.Role, "Student", StringComparison.OrdinalIgnoreCase))
+                throw new ForbiddenException("Students cannot complete bookings");
 
             var booking = await Db.Set<OfficeHourBooking>()
                 .Include(b => b.OfficeHour)
-                .FirstOrDefaultAsync(b => b.BookingId == bookingId && b.OfficeHour.InstructorId == instructor.InstructorId);
+                .FirstOrDefaultAsync(b => b.BookingId == bookingId && b.OfficeHour.OwnerUserId == instructorUserId);
 
             if (booking == null)
                 throw new NotFoundException("Booking not found");
@@ -516,15 +609,19 @@ namespace RegMan.Backend.BusinessLayer.Services
 
         public async Task MarkNoShowAsync(string instructorUserId, int bookingId)
         {
-            var instructor = await Db.Set<InstructorProfile>()
-                .FirstOrDefaultAsync(i => i.UserId == instructorUserId);
+            var owner = await Db.Set<BaseUser>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == instructorUserId);
 
-            if (instructor == null)
-                throw new NotFoundException("Instructor profile not found");
+            if (owner == null)
+                throw new NotFoundException("User not found");
+
+            if (string.Equals(owner.Role, "Student", StringComparison.OrdinalIgnoreCase))
+                throw new ForbiddenException("Students cannot mark no-show");
 
             var booking = await Db.Set<OfficeHourBooking>()
                 .Include(b => b.OfficeHour)
-                .FirstOrDefaultAsync(b => b.BookingId == bookingId && b.OfficeHour.InstructorId == instructor.InstructorId);
+                .FirstOrDefaultAsync(b => b.BookingId == bookingId && b.OfficeHour.OwnerUserId == instructorUserId);
 
             if (booking == null)
                 throw new NotFoundException("Booking not found");
@@ -594,7 +691,109 @@ namespace RegMan.Backend.BusinessLayer.Services
                 .ToListAsync();
         }
 
-        public async Task<int> BookOfficeHourAsync(string studentUserId, int officeHourId, BookOfficeHourRequestDTO dto)
+        public async Task<List<StudentProvidersWithOfficeHoursDTO>> GetProvidersWithOfficeHoursAsync()
+        {
+            var todayUtc = DateTime.UtcNow.Date;
+
+            var counts = await Db.Set<OfficeHour>()
+                .AsNoTracking()
+                .Where(oh => oh.Status == OfficeHourStatus.Available && oh.Date >= todayUtc)
+                .GroupBy(oh => new { oh.OwnerUserId, oh.OwnerRole })
+                .Select(g => new
+                {
+                    g.Key.OwnerUserId,
+                    g.Key.OwnerRole,
+                    AvailableSlots = g.Count()
+                })
+                .ToListAsync();
+
+            if (counts.Count == 0)
+                return new List<StudentProvidersWithOfficeHoursDTO>();
+
+            var providerUserIds = counts.Select(c => c.OwnerUserId).Distinct().ToList();
+
+            var users = await Db.Set<BaseUser>()
+                .AsNoTracking()
+                .Where(u => providerUserIds.Contains(u.Id))
+                .Select(u => new { u.Id, u.FullName, u.Role })
+                .ToListAsync();
+
+            var instructors = await Db.Set<InstructorProfile>()
+                .AsNoTracking()
+                .Where(i => providerUserIds.Contains(i.UserId))
+                .Select(i => new { i.UserId, i.Title, i.Degree, i.Department })
+                .ToListAsync();
+
+            var byUserId = users.ToDictionary(u => u.Id, u => u);
+            var instructorByUserId = instructors.ToDictionary(i => i.UserId, i => i);
+
+            return counts
+                .Select(c =>
+                {
+                    byUserId.TryGetValue(c.OwnerUserId, out var user);
+                    instructorByUserId.TryGetValue(c.OwnerUserId, out var inst);
+
+                    return new StudentProvidersWithOfficeHoursDTO
+                    {
+                        AvailableSlots = c.AvailableSlots,
+                        Provider = new ProviderInfoDTO
+                        {
+                            UserId = c.OwnerUserId,
+                            FullName = user?.FullName ?? "Unknown",
+                            Role = user?.Role ?? c.OwnerRole,
+                            Title = inst?.Title,
+                            Degree = inst?.Degree,
+                            Department = inst?.Department
+                        }
+                    };
+                })
+                .OrderBy(p => p.Provider.FullName)
+                .ToList();
+        }
+
+        public async Task<List<StudentAvailableOfficeHourV2DTO>> GetAvailableOfficeHoursV2Async(string? providerUserId, DateTime? fromDate, DateTime? toDate)
+        {
+            var query = Db.Set<OfficeHour>()
+                .AsNoTracking()
+                .Include(oh => oh.OwnerUser)
+                .Include(oh => oh.Instructor)
+                .Include(oh => oh.Room)
+                .Where(oh => oh.Status == OfficeHourStatus.Available && oh.Date >= DateTime.UtcNow.Date);
+
+            if (!string.IsNullOrWhiteSpace(providerUserId))
+                query = query.Where(oh => oh.OwnerUserId == providerUserId);
+            if (fromDate.HasValue)
+                query = query.Where(oh => oh.Date >= fromDate.Value.Date);
+            if (toDate.HasValue)
+                query = query.Where(oh => oh.Date <= toDate.Value.Date);
+
+            return await query
+                .OrderBy(oh => oh.Date)
+                .ThenBy(oh => oh.StartTime)
+                .Select(oh => new StudentAvailableOfficeHourV2DTO
+                {
+                    OfficeHourId = oh.OfficeHourId,
+                    Date = oh.Date,
+                    StartTime = oh.StartTime.ToString(@"hh\:mm"),
+                    EndTime = oh.EndTime.ToString(@"hh\:mm"),
+                    Notes = oh.Notes,
+                    Room = oh.Room != null
+                        ? new RoomInfoDTO { RoomId = oh.Room.RoomId, RoomNumber = oh.Room.RoomNumber, Building = oh.Room.Building }
+                        : null,
+                    Provider = new ProviderInfoDTO
+                    {
+                        UserId = oh.OwnerUserId,
+                        FullName = oh.OwnerUser.FullName,
+                        Role = oh.OwnerRole,
+                        Title = oh.Instructor != null ? oh.Instructor.Title : null,
+                        Degree = oh.Instructor != null ? oh.Instructor.Degree : null,
+                        Department = oh.Instructor != null ? oh.Instructor.Department : null
+                    }
+                })
+                .ToListAsync();
+        }
+
+        public async Task<BookOfficeHourResultDTO> BookOfficeHourAsync(string studentUserId, int officeHourId, BookOfficeHourRequestDTO dto)
         {
             var student = await Db.Set<StudentProfile>()
                 .Include(s => s.User)
@@ -604,8 +803,10 @@ namespace RegMan.Backend.BusinessLayer.Services
                 throw new NotFoundException("Student profile not found");
 
             var officeHour = await Db.Set<OfficeHour>()
+                .Include(oh => oh.OwnerUser)
                 .Include(oh => oh.Instructor)
                     .ThenInclude(i => i.User)
+                .Include(oh => oh.Room)
                 .FirstOrDefaultAsync(oh => oh.OfficeHourId == officeHourId);
 
             if (officeHour == null)
@@ -625,6 +826,16 @@ namespace RegMan.Backend.BusinessLayer.Services
             if (existingBooking)
                 throw new BadRequestException("You already have a booking for this office hour");
 
+            var activeCount = await Db.Set<OfficeHourBooking>()
+                .CountAsync(b => b.OfficeHourId == officeHourId &&
+                               (b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed));
+
+            if (officeHour.Capacity < 1)
+                throw new BadRequestException("This office hour is not bookable");
+
+            if (activeCount >= officeHour.Capacity)
+                throw new BadRequestException("This office hour is fully booked");
+
             var booking = new OfficeHourBooking
             {
                 OfficeHourId = officeHourId,
@@ -635,18 +846,42 @@ namespace RegMan.Backend.BusinessLayer.Services
             };
 
             Db.Set<OfficeHourBooking>().Add(booking);
-            officeHour.Status = OfficeHourStatus.Booked;
+
+            var newActiveCount = activeCount + 1;
+            officeHour.Status = newActiveCount >= officeHour.Capacity
+                ? OfficeHourStatus.Booked
+                : OfficeHourStatus.Available;
             await unitOfWork.SaveChangesAsync();
 
             await notificationService.CreateOfficeHourBookedNotificationAsync(
                 bookingId: booking.BookingId,
-                instructorUserId: officeHour.Instructor.UserId,
+                instructorUserId: officeHour.OwnerUserId,
                 studentName: student.User.FullName,
                 date: officeHour.Date,
                 startTime: officeHour.StartTime
             );
 
-            return booking.BookingId;
+            // Ensure/reuse a direct conversation between student and provider.
+            var conversation = await chatService.GetOrCreateDirectConversationAsync(studentUserId, officeHour.OwnerUserId, pageNumber: 1, pageSize: 1);
+
+            // Best-effort: make sure both sides join the group immediately if online.
+            await chatRealtimePublisher.PublishConversationCreatedAsync(studentUserId, conversation.ConversationId);
+            await chatRealtimePublisher.PublishConversationCreatedAsync(officeHour.OwnerUserId, conversation.ConversationId);
+
+            var messageText = BuildBookingSystemMessage("📅 A new office hour booking has been created", officeHour);
+            var systemMessage = await chatService.SendSystemMessageToConversationAsync(
+                conversationId: conversation.ConversationId,
+                textMessage: messageText,
+                clientMessageId: $"officehour-booking:{booking.BookingId}:created");
+
+            await chatRealtimePublisher.PublishSystemMessageCreatedAsync(conversation.ConversationId, systemMessage);
+
+            return new BookOfficeHourResultDTO
+            {
+                BookingId = booking.BookingId,
+                ConversationId = conversation.ConversationId,
+                SystemMessageId = systemMessage.MessageId
+            };
         }
 
         public async Task<List<StudentBookingListItemDTO>> GetMyBookingsAsync(string studentUserId, string? status)
@@ -658,6 +893,8 @@ namespace RegMan.Backend.BusinessLayer.Services
                 throw new NotFoundException("Student profile not found");
 
             var query = Db.Set<OfficeHourBooking>()
+                .Include(b => b.OfficeHour)
+                    .ThenInclude(oh => oh.OwnerUser)
                 .Include(b => b.OfficeHour)
                     .ThenInclude(oh => oh.Instructor)
                         .ThenInclude(i => i.User)
@@ -692,14 +929,25 @@ namespace RegMan.Backend.BusinessLayer.Services
                         Notes = b.OfficeHour.Notes,
                         Room = b.OfficeHour.Room != null ? new RoomInfoDTO { RoomId = b.OfficeHour.Room.RoomId, RoomNumber = b.OfficeHour.Room.RoomNumber, Building = b.OfficeHour.Room.Building } : null
                     },
-                    Instructor = new InstructorInfoDTO
+                    Provider = new ProviderInfoDTO
                     {
-                        InstructorId = b.OfficeHour.Instructor.InstructorId,
-                        FullName = b.OfficeHour.Instructor.User.FullName,
-                        Title = b.OfficeHour.Instructor.Title,
-                        Degree = b.OfficeHour.Instructor.Degree,
-                        Department = b.OfficeHour.Instructor.Department
-                    }
+                        UserId = b.OfficeHour.OwnerUserId,
+                        FullName = b.OfficeHour.OwnerUser.FullName,
+                        Role = b.OfficeHour.OwnerUser.Role,
+                        Title = b.OfficeHour.Instructor != null ? b.OfficeHour.Instructor.Title : null,
+                        Degree = b.OfficeHour.Instructor != null ? b.OfficeHour.Instructor.Degree : null,
+                        Department = b.OfficeHour.Instructor != null ? b.OfficeHour.Instructor.Department : null
+                    },
+                    Instructor = b.OfficeHour.Instructor != null
+                        ? new InstructorInfoDTO
+                        {
+                            InstructorId = b.OfficeHour.Instructor.InstructorId,
+                            FullName = b.OfficeHour.Instructor.User.FullName,
+                            Title = b.OfficeHour.Instructor.Title,
+                            Degree = b.OfficeHour.Instructor.Degree,
+                            Department = b.OfficeHour.Instructor.Department
+                        }
+                        : null
                 })
                 .ToListAsync();
         }
@@ -708,8 +956,9 @@ namespace RegMan.Backend.BusinessLayer.Services
         {
             var booking = await Db.Set<OfficeHourBooking>()
                 .Include(b => b.OfficeHour)
-                    .ThenInclude(oh => oh.Instructor)
-                        .ThenInclude(i => i.User)
+                    .ThenInclude(oh => oh.OwnerUser)
+                .Include(b => b.OfficeHour)
+                    .ThenInclude(oh => oh.Room)
                 .Include(b => b.Student)
                     .ThenInclude(s => s.User)
                 .FirstOrDefaultAsync(b => b.BookingId == bookingId);
@@ -723,10 +972,9 @@ namespace RegMan.Backend.BusinessLayer.Services
                 if (student == null || booking.StudentId != student.StudentId)
                     throw new ForbiddenException("Forbidden");
             }
-            else if (userRole == "Instructor")
+            else
             {
-                var instructor = await Db.Set<InstructorProfile>().FirstOrDefaultAsync(i => i.UserId == userId);
-                if (instructor == null || booking.OfficeHour.InstructorId != instructor.InstructorId)
+                if (booking.OfficeHour.OwnerUserId != userId)
                     throw new ForbiddenException("Forbidden");
             }
 
@@ -740,7 +988,15 @@ namespace RegMan.Backend.BusinessLayer.Services
             booking.CancellationReason = reason;
             booking.CancelledBy = userRole;
             booking.CancelledAt = DateTime.UtcNow;
-            booking.OfficeHour.Status = OfficeHourStatus.Available;
+
+            // Re-open the slot if it was fully booked.
+            var remainingActiveCount = await Db.Set<OfficeHourBooking>()
+                .CountAsync(b => b.OfficeHourId == booking.OfficeHourId &&
+                               b.BookingId != booking.BookingId &&
+                               (b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed));
+            booking.OfficeHour.Status = remainingActiveCount >= booking.OfficeHour.Capacity
+                ? OfficeHourStatus.Booked
+                : OfficeHourStatus.Available;
 
             await unitOfWork.SaveChangesAsync();
 
@@ -765,7 +1021,7 @@ namespace RegMan.Backend.BusinessLayer.Services
             if (userRole == "Student")
             {
                 await notificationService.CreateOfficeHourCancelledNotificationAsync(
-                    userId: booking.OfficeHour.Instructor.UserId,
+                    userId: booking.OfficeHour.OwnerUserId,
                     cancelledBy: booking.Student.User.FullName,
                     date: booking.OfficeHour.Date,
                     startTime: booking.OfficeHour.StartTime,
@@ -776,12 +1032,139 @@ namespace RegMan.Backend.BusinessLayer.Services
             {
                 await notificationService.CreateOfficeHourCancelledNotificationAsync(
                     userId: booking.Student.UserId,
-                    cancelledBy: "Instructor",
+                    cancelledBy: booking.OfficeHour.OwnerUser.FullName,
                     date: booking.OfficeHour.Date,
                     startTime: booking.OfficeHour.StartTime,
                     reason: reason
                 );
             }
+
+            var conversation = await chatService.GetOrCreateDirectConversationAsync(booking.Student.UserId, booking.OfficeHour.OwnerUserId, pageNumber: 1, pageSize: 1);
+            await chatRealtimePublisher.PublishConversationCreatedAsync(booking.Student.UserId, conversation.ConversationId);
+            await chatRealtimePublisher.PublishConversationCreatedAsync(booking.OfficeHour.OwnerUserId, conversation.ConversationId);
+
+            var reasonLine = string.IsNullOrWhiteSpace(reason) ? string.Empty : $"\nReason: {reason}";
+            var messageText = BuildBookingSystemMessage($"❌ Office hour booking cancelled by {userRole}", booking.OfficeHour) + reasonLine;
+            var systemMessage = await chatService.SendSystemMessageToConversationAsync(
+                conversationId: conversation.ConversationId,
+                textMessage: messageText,
+                clientMessageId: $"officehour-booking:{booking.BookingId}:cancelled");
+
+            await chatRealtimePublisher.PublishSystemMessageCreatedAsync(conversation.ConversationId, systemMessage);
+        }
+
+        public async Task<RescheduleOfficeHourBookingResultDTO> RescheduleBookingAsync(string userId, string userRole, int bookingId, int newOfficeHourId, string? reason)
+        {
+            var booking = await Db.Set<OfficeHourBooking>()
+                .Include(b => b.OfficeHour)
+                    .ThenInclude(oh => oh.OwnerUser)
+                .Include(b => b.OfficeHour)
+                    .ThenInclude(oh => oh.Room)
+                .Include(b => b.Student)
+                    .ThenInclude(s => s.User)
+                .FirstOrDefaultAsync(b => b.BookingId == bookingId);
+
+            if (booking == null)
+                throw new NotFoundException("Booking not found");
+
+            if (userRole == "Student")
+            {
+                var student = await Db.Set<StudentProfile>().FirstOrDefaultAsync(s => s.UserId == userId);
+                if (student == null || booking.StudentId != student.StudentId)
+                    throw new ForbiddenException("Forbidden");
+            }
+            else
+            {
+                if (booking.OfficeHour.OwnerUserId != userId && userRole != "Admin")
+                    throw new ForbiddenException("Forbidden");
+            }
+
+            if (booking.Status == BookingStatus.Cancelled)
+                throw new BadRequestException("Cannot reschedule a cancelled booking");
+
+            if (booking.Status == BookingStatus.Completed)
+                throw new BadRequestException("Cannot reschedule a completed booking");
+
+            if (booking.Status == BookingStatus.NoShow)
+                throw new BadRequestException("Cannot reschedule a no-show booking");
+
+            if (booking.OfficeHourId == newOfficeHourId)
+                throw new BadRequestException("New office hour must be different from the current one");
+
+            var newOfficeHour = await Db.Set<OfficeHour>()
+                .Include(oh => oh.OwnerUser)
+                .Include(oh => oh.Room)
+                .FirstOrDefaultAsync(oh => oh.OfficeHourId == newOfficeHourId);
+
+            if (newOfficeHour == null)
+                throw new NotFoundException("New office hour not found");
+
+            if (newOfficeHour.Status != OfficeHourStatus.Available)
+                throw new BadRequestException("New office hour is not available");
+
+            if (newOfficeHour.Date.Date < DateTime.UtcNow.Date)
+                throw new BadRequestException("Cannot reschedule to a past office hour");
+
+            // Keep the conversation stable: reschedule within the same provider.
+            if (!string.Equals(newOfficeHour.OwnerUserId, booking.OfficeHour.OwnerUserId, StringComparison.OrdinalIgnoreCase))
+                throw new BadRequestException("Cannot reschedule to a different provider");
+
+            var newActiveCount = await Db.Set<OfficeHourBooking>()
+                .CountAsync(b => b.OfficeHourId == newOfficeHourId && (b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed));
+
+            if (newOfficeHour.Capacity < 1)
+                throw new BadRequestException("New office hour is not bookable");
+
+            if (newActiveCount >= newOfficeHour.Capacity)
+                throw new BadRequestException("New office hour is fully booked");
+
+            var oldOfficeHour = booking.OfficeHour;
+            var oldOfficeHourId = booking.OfficeHourId;
+
+            booking.OfficeHourId = newOfficeHourId;
+            booking.OfficeHour = newOfficeHour;
+
+            // Rescheduling requires re-confirmation.
+            booking.Status = BookingStatus.Pending;
+            booking.ConfirmedAt = null;
+
+            // Update availability for both old and new office hours.
+            var remainingActiveCountOld = await Db.Set<OfficeHourBooking>()
+                .CountAsync(b => b.OfficeHourId == oldOfficeHourId && b.BookingId != booking.BookingId && (b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed));
+            oldOfficeHour.Status = remainingActiveCountOld >= oldOfficeHour.Capacity
+                ? OfficeHourStatus.Booked
+                : OfficeHourStatus.Available;
+
+            var updatedActiveCountNew = newActiveCount + 1;
+            newOfficeHour.Status = updatedActiveCountNew >= newOfficeHour.Capacity
+                ? OfficeHourStatus.Booked
+                : OfficeHourStatus.Available;
+
+            await unitOfWork.SaveChangesAsync();
+
+            // Chat: persisted system message and realtime publish.
+            var conversation = await chatService.GetOrCreateDirectConversationAsync(booking.Student.UserId, newOfficeHour.OwnerUserId, pageNumber: 1, pageSize: 1);
+            await chatRealtimePublisher.PublishConversationCreatedAsync(booking.Student.UserId, conversation.ConversationId);
+            await chatRealtimePublisher.PublishConversationCreatedAsync(newOfficeHour.OwnerUserId, conversation.ConversationId);
+
+            var fromLine = BuildBookingSystemMessage("From", oldOfficeHour);
+            var toLine = BuildBookingSystemMessage("To", newOfficeHour);
+            var reasonLine = string.IsNullOrWhiteSpace(reason) ? string.Empty : $"\nReason: {reason}";
+            var messageText = $"🔁 Office hour booking has been rescheduled\n\n{fromLine}\n\n{toLine}{reasonLine}";
+
+            var systemMessage = await chatService.SendSystemMessageToConversationAsync(
+                conversationId: conversation.ConversationId,
+                textMessage: messageText,
+                clientMessageId: $"officehour-booking:{booking.BookingId}:rescheduled:{newOfficeHourId}");
+
+            await chatRealtimePublisher.PublishSystemMessageCreatedAsync(conversation.ConversationId, systemMessage);
+
+            return new RescheduleOfficeHourBookingResultDTO
+            {
+                BookingId = booking.BookingId,
+                ConversationId = conversation.ConversationId,
+                SystemMessageId = systemMessage.MessageId
+            };
         }
 
         //DELETE (legacy - keep existing contract behavior for any older usages)

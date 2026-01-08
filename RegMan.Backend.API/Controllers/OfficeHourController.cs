@@ -68,7 +68,7 @@ namespace RegMan.Backend.API.Controllers
         /// Get all office hours for the current instructor
         /// </summary>
         [HttpGet("my-office-hours")]
-        [Authorize(Roles = "Instructor")]
+        [Authorize(Roles = "Instructor,Admin")]
         public async Task<IActionResult> GetMyOfficeHours([FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -81,7 +81,7 @@ namespace RegMan.Backend.API.Controllers
         /// Create a new office hour slot
         /// </summary>
         [HttpPost]
-        [Authorize(Roles = "Instructor")]
+        [Authorize(Roles = "Instructor,Admin")]
         public async Task<IActionResult> CreateOfficeHour([FromBody] CreateOfficeHourDTO dto)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -104,7 +104,7 @@ namespace RegMan.Backend.API.Controllers
         /// Create multiple office hours at once (batch create)
         /// </summary>
         [HttpPost("batch")]
-        [Authorize(Roles = "Instructor")]
+        [Authorize(Roles = "Instructor,Admin")]
         public async Task<IActionResult> CreateBatchOfficeHours([FromBody] List<CreateOfficeHourDTO> dtos)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -129,7 +129,7 @@ namespace RegMan.Backend.API.Controllers
         /// Update an office hour
         /// </summary>
         [HttpPut("{id}")]
-        [Authorize(Roles = "Instructor")]
+        [Authorize(Roles = "Instructor,Admin")]
         public async Task<IActionResult> UpdateOfficeHour(int id, [FromBody] UpdateOfficeHourDTO dto)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -149,7 +149,7 @@ namespace RegMan.Backend.API.Controllers
         /// Delete an office hour
         /// </summary>
         [HttpDelete("{id}")]
-        [Authorize(Roles = "Instructor")]
+        [Authorize(Roles = "Instructor,Admin")]
         public async Task<IActionResult> DeleteOfficeHour(int id)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -162,7 +162,7 @@ namespace RegMan.Backend.API.Controllers
         /// Confirm a booking
         /// </summary>
         [HttpPost("bookings/{bookingId}/confirm")]
-        [Authorize(Roles = "Instructor")]
+        [Authorize(Roles = "Instructor,Admin")]
         public async Task<IActionResult> ConfirmBooking(int bookingId)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -175,7 +175,7 @@ namespace RegMan.Backend.API.Controllers
         /// Add instructor notes to a booking
         /// </summary>
         [HttpPut("bookings/{bookingId}/notes")]
-        [Authorize(Roles = "Instructor")]
+        [Authorize(Roles = "Instructor,Admin")]
         public async Task<IActionResult> AddInstructorNotes(int bookingId, [FromBody] InstructorNotesDTO dto)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -188,7 +188,7 @@ namespace RegMan.Backend.API.Controllers
         /// Mark booking as completed
         /// </summary>
         [HttpPost("bookings/{bookingId}/complete")]
-        [Authorize(Roles = "Instructor")]
+        [Authorize(Roles = "Instructor,Admin")]
         public async Task<IActionResult> CompleteBooking(int bookingId)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -201,7 +201,7 @@ namespace RegMan.Backend.API.Controllers
         /// Mark booking as no-show
         /// </summary>
         [HttpPost("bookings/{bookingId}/no-show")]
-        [Authorize(Roles = "Instructor")]
+        [Authorize(Roles = "Instructor,Admin")]
         public async Task<IActionResult> MarkNoShow(int bookingId)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -230,6 +230,31 @@ namespace RegMan.Backend.API.Controllers
         }
 
         /// <summary>
+        /// Get all providers with available office hours (role-agnostic)
+        /// </summary>
+        [HttpGet("providers")]
+        [Authorize(Roles = "Student")]
+        public async Task<IActionResult> GetProvidersWithOfficeHours()
+        {
+            var providers = await officeHoursService.GetProvidersWithOfficeHoursAsync();
+            return Ok(ApiResponse<object>.SuccessResponse(providers));
+        }
+
+        /// <summary>
+        /// Get all available office hours for students to book (role-agnostic provider)
+        /// </summary>
+        [HttpGet("available-v2")]
+        [Authorize(Roles = "Student")]
+        public async Task<IActionResult> GetAvailableOfficeHoursV2(
+            [FromQuery] string? providerUserId,
+            [FromQuery] DateTime? fromDate,
+            [FromQuery] DateTime? toDate)
+        {
+            var officeHours = await officeHoursService.GetAvailableOfficeHoursV2Async(providerUserId, fromDate, toDate);
+            return Ok(ApiResponse<object>.SuccessResponse(officeHours));
+        }
+
+        /// <summary>
         /// Get all instructors with their available office hours count
         /// </summary>
         [HttpGet("instructors")]
@@ -249,14 +274,14 @@ namespace RegMan.Backend.API.Controllers
         public async Task<IActionResult> BookOfficeHour(int id, [FromBody] BookOfficeHourDTO dto)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var bookingId = await officeHoursService.BookOfficeHourAsync(userId, id, new BookOfficeHourRequestDTO
+            var result = await officeHoursService.BookOfficeHourAsync(userId, id, new BookOfficeHourRequestDTO
             {
                 Purpose = dto.Purpose,
                 StudentNotes = dto.StudentNotes
             });
 
             return Ok(ApiResponse<object>.SuccessResponse(
-                new { bookingId },
+                new { result.BookingId, result.ConversationId, result.SystemMessageId },
                 "Office hour booked successfully"));
         }
 
@@ -277,7 +302,7 @@ namespace RegMan.Backend.API.Controllers
         /// Cancel a booking (student)
         /// </summary>
         [HttpPost("bookings/{bookingId}/cancel")]
-        [Authorize(Roles = "Student,Instructor")]
+        [Authorize(Roles = "Student,Instructor,Admin")]
         public async Task<IActionResult> CancelBooking(int bookingId, [FromBody] CancelBookingDTO dto)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);

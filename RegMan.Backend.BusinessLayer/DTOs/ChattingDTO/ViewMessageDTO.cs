@@ -15,6 +15,8 @@ namespace RegMan.Backend.BusinessLayer.DTOs.ChattingDTO
         public DateTime? ServerReceivedAt { get; set; }
         public string SenderId { get; set; }
         public string SenderName { get; set; } = string.Empty;
+        public string? SenderRole { get; set; }
+        public bool IsSystem { get; set; }
         public string Content { get; set; } = string.Empty;
         public DateTime Timestamp { get; set; }
         public MsgStatus Status { get; set; }
