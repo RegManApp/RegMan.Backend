@@ -24,14 +24,14 @@ namespace RegMan.Backend.BusinessLayer.Contracts
         Task CompleteBookingAsync(string instructorUserId, int bookingId);
         Task MarkNoShowAsync(string instructorUserId, int bookingId);
 
-        // Student
+        // Booking (any role)
         Task<List<StudentAvailableOfficeHourDTO>> GetAvailableOfficeHoursAsync(int? instructorId, DateTime? fromDate, DateTime? toDate);
         Task<List<StudentInstructorsWithOfficeHoursDTO>> GetInstructorsWithOfficeHoursAsync();
-        Task<BookOfficeHourResultDTO> BookOfficeHourAsync(string studentUserId, int officeHourId, BookOfficeHourRequestDTO dto);
-        Task<List<StudentBookingListItemDTO>> GetMyBookingsAsync(string studentUserId, string? status);
+        Task<BookOfficeHourResultDTO> BookOfficeHourAsync(string bookerUserId, int officeHourId, BookOfficeHourRequestDTO dto);
+        Task<List<UserBookingListItemDTO>> GetMyBookingsAsync(string bookerUserId, string? status);
 
-        // Student (role-agnostic providers)
-        Task<List<StudentProvidersWithOfficeHoursDTO>> GetProvidersWithOfficeHoursAsync();
+        // Provider browsing (role-agnostic providers)
+        Task<List<StudentProvidersWithOfficeHoursDTO>> GetProvidersWithOfficeHoursAsync(string? role, int? courseId, int? sectionId);
         Task<List<StudentAvailableOfficeHourV2DTO>> GetAvailableOfficeHoursV2Async(string? providerUserId, DateTime? fromDate, DateTime? toDate);
 
         // Student/Instructor

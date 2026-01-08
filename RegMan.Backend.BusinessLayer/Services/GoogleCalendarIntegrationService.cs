@@ -583,13 +583,23 @@ namespace RegMan.Backend.BusinessLayer.Services
                                 ?? "";
 
             sb.AppendLine($"Provider: {providerName} ({providerEmail})");
-            sb.AppendLine($"Student: {booking.Student.User.FullName} ({booking.Student.User.Email})");
+
+            var bookerName = booking.BookerUser?.FullName
+                            ?? booking.Student?.User?.FullName
+                            ?? "Booker";
+
+            var bookerEmail = booking.BookerUser?.Email
+                             ?? booking.Student?.User?.Email
+                             ?? "";
+
+            sb.AppendLine($"Booked By: {bookerName} ({bookerEmail})");
 
             if (!string.IsNullOrWhiteSpace(booking.Purpose))
                 sb.AppendLine($"Purpose: {booking.Purpose}");
 
-            if (!string.IsNullOrWhiteSpace(booking.StudentNotes))
-                sb.AppendLine($"Student Notes: {booking.StudentNotes}");
+
+            if (!string.IsNullOrWhiteSpace(booking.BookerNotes))
+                sb.AppendLine($"Booker Notes: {booking.BookerNotes}");
 
             if (!string.IsNullOrWhiteSpace(booking.OfficeHour.Notes))
                 sb.AppendLine($"Office Hour Notes: {booking.OfficeHour.Notes}");

@@ -21,8 +21,15 @@ namespace RegMan.Backend.DAL.Entities
         [Required]
         public int OfficeHourId { get; set; }
 
+        // Role-agnostic: who booked this office hour
         [Required]
-        public int StudentId { get; set; }
+        public string BookerUserId { get; set; } = null!;
+
+        [MaxLength(50)]
+        public string BookerRole { get; set; } = null!;
+
+        // Back-compat for existing student bookings (nullable for non-student bookers)
+        public int? StudentId { get; set; }
 
         // Booking details
         public BookingStatus Status { get; set; } = BookingStatus.Pending;
@@ -31,18 +38,18 @@ namespace RegMan.Backend.DAL.Entities
         [MaxLength(500)]
         public string? Purpose { get; set; }
 
-        // Notes from student
+        // Notes from booker
         [MaxLength(1000)]
-        public string? StudentNotes { get; set; }
+        public string? BookerNotes { get; set; }
 
-        // Notes from instructor (after meeting)
+        // Notes from provider (after meeting)
         [MaxLength(1000)]
-        public string? InstructorNotes { get; set; }
+        public string? ProviderNotes { get; set; }
 
         // Cancellation reason
         [MaxLength(500)]
         public string? CancellationReason { get; set; }
-        public string? CancelledBy { get; set; } // "Student" or "Instructor"
+        public string? CancelledBy { get; set; } // e.g. "Booker" or "Provider" (or a role)
 
         // Timestamps
         public DateTime BookedAt { get; set; } = DateTime.UtcNow;
@@ -52,6 +59,7 @@ namespace RegMan.Backend.DAL.Entities
 
         // Navigation properties
         public OfficeHour OfficeHour { get; set; } = null!;
-        public StudentProfile Student { get; set; } = null!;
+        public BaseUser BookerUser { get; set; } = null!;
+        public StudentProfile? Student { get; set; }
     }
 }

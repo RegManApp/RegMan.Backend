@@ -8,6 +8,7 @@ using System.Security.Claims;
 namespace RegMan.Backend.API.Controllers
 {
     [Route("api/[controller]")]
+    [Route("[controller]")]
     [ApiController]
     [Authorize]
     public class AnnouncementsController : ControllerBase

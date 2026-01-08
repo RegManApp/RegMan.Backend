@@ -241,7 +241,7 @@ namespace RegMan.Backend.API.Controllers
                                 instructorName = booking.OfficeHour.Instructor.User.FullName,
                                 room = booking.OfficeHour.Room != null ? $"{booking.OfficeHour.Room.RoomNumber} ({booking.OfficeHour.Room.Building})" : "TBD",
                                 purpose = booking.Purpose,
-                                notes = booking.StudentNotes
+                                notes = booking.BookerNotes
                             }
                         });
                     }

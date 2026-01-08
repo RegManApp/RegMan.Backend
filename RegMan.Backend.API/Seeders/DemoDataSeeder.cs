@@ -438,13 +438,22 @@ namespace RegMan.Backend.API.Seeders
 
             if (!bookingExists)
             {
+                var studentProfile = await context.Students
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(s => s.StudentId == studentId);
+
+                if (studentProfile == null)
+                    return;
+
                 context.OfficeHourBookings.Add(new OfficeHourBooking
                 {
                     OfficeHourId = officeHour.OfficeHourId,
+                    BookerUserId = studentProfile.UserId,
+                    BookerRole = "Student",
                     StudentId = studentId,
                     Status = BookingStatus.Pending,
                     Purpose = "Discuss course selection (demo)",
-                    StudentNotes = "Looking for a compact schedule"
+                    BookerNotes = "Looking for a compact schedule"
                 });
                 await context.SaveChangesAsync();
             }

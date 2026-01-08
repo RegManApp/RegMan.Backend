@@ -27,7 +27,7 @@ namespace RegMan.Backend.BusinessLayer.DTOs.OfficeHoursDTOs
     public sealed class BookOfficeHourRequestDTO
     {
         public string? Purpose { get; set; }
-        public string? StudentNotes { get; set; }
+        public string? BookerNotes { get; set; }
     }
 
     public sealed class BookOfficeHourResultDTO
@@ -65,6 +65,14 @@ namespace RegMan.Backend.BusinessLayer.DTOs.OfficeHoursDTOs
         public string Email { get; set; } = null!;
     }
 
+    public sealed class UserInfoDTO
+    {
+        public string UserId { get; set; } = null!;
+        public string FullName { get; set; } = null!;
+        public string Email { get; set; } = null!;
+        public string Role { get; set; } = null!;
+    }
+
     public sealed class InstructorInfoDTO
     {
         public int InstructorId { get; set; }
@@ -86,15 +94,15 @@ namespace RegMan.Backend.BusinessLayer.DTOs.OfficeHoursDTOs
     }
 
     // Instructor list
-    public sealed class InstructorBookingListItemDTO
+    public sealed class ProviderBookingListItemDTO
     {
         public int BookingId { get; set; }
         public BookingStatus Status { get; set; }
         public string? Purpose { get; set; }
-        public string? StudentNotes { get; set; }
-        public string? InstructorNotes { get; set; }
+        public string? BookerNotes { get; set; }
+        public string? ProviderNotes { get; set; }
         public DateTime BookedAt { get; set; }
-        public StudentInfoDTO Student { get; set; } = null!;
+        public UserInfoDTO Booker { get; set; } = null!;
     }
 
     public sealed class InstructorOfficeHourListItemDTO
@@ -108,7 +116,7 @@ namespace RegMan.Backend.BusinessLayer.DTOs.OfficeHoursDTOs
         public bool IsRecurring { get; set; }
         public DayOfWeek? RecurringDay { get; set; }
         public RoomInfoDTO? Room { get; set; }
-        public List<InstructorBookingListItemDTO> Bookings { get; set; } = new();
+        public List<ProviderBookingListItemDTO> Bookings { get; set; } = new();
     }
 
     // Student available office hours
@@ -160,13 +168,13 @@ namespace RegMan.Backend.BusinessLayer.DTOs.OfficeHoursDTOs
         public RoomInfoDTO? Room { get; set; }
     }
 
-    public sealed class StudentBookingListItemDTO
+    public sealed class UserBookingListItemDTO
     {
         public int BookingId { get; set; }
         public BookingStatus Status { get; set; }
         public string? Purpose { get; set; }
-        public string? StudentNotes { get; set; }
-        public string? InstructorNotes { get; set; }
+        public string? BookerNotes { get; set; }
+        public string? ProviderNotes { get; set; }
         public DateTime BookedAt { get; set; }
         public DateTime? ConfirmedAt { get; set; }
         public DateTime? CancelledAt { get; set; }

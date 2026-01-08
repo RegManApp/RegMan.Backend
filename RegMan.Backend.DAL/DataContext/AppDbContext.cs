@@ -361,7 +361,7 @@ namespace RegMan.Backend.DAL.DataContext
 
             // Unique constraint: Student can only book same office hour once
             modelBuilder.Entity<OfficeHourBooking>()
-                .HasIndex(ohb => new { ohb.OfficeHourId, ohb.StudentId })
+                .HasIndex(ohb => new { ohb.OfficeHourId, ohb.BookerUserId })
                 .IsUnique();
 
             // Ensure there is only one active calendar settings row (by convention we use SettingsId=1)
@@ -383,7 +383,13 @@ namespace RegMan.Backend.DAL.DataContext
                 .HasOne(ohb => ohb.Student)
                 .WithMany(s => s.OfficeHourBookings)
                 .HasForeignKey(ohb => ohb.StudentId)
-                .OnDelete(DeleteBehavior.Restrict); // Changed from Cascade to Restrict to avoid multiple cascade paths
+                .OnDelete(DeleteBehavior.Restrict); // Keep optional for back-compat
+
+            modelBuilder.Entity<OfficeHourBooking>()
+                .HasOne(ohb => ohb.BookerUser)
+                .WithMany()
+                .HasForeignKey(ohb => ohb.BookerUserId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<OfficeHour>()
 

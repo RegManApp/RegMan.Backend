@@ -246,7 +246,7 @@ namespace RegMan.Backend.BusinessLayer.Services
                             ? $"{booking.OfficeHour.Room.RoomNumber} ({booking.OfficeHour.Room.Building})"
                             : "TBD",
                         Purpose = booking.Purpose,
-                        Notes = booking.StudentNotes
+                        Notes = booking.BookerNotes
                     }
                 });
             }
