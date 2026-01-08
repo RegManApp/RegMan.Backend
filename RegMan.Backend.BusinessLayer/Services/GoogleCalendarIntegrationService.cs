@@ -134,11 +134,22 @@ namespace RegMan.Backend.BusinessLayer.Services
                 );
             }
 
-            var state = ProtectState(new GoogleCalendarOAuthState(
-                UserId: userId,
-                IssuedAtUtc: DateTime.UtcNow,
-                ReturnUrl: string.IsNullOrWhiteSpace(returnUrl) ? null : returnUrl
-            ));
+            string state;
+            try
+            {
+                state = ProtectState(new GoogleCalendarOAuthState(
+                    UserId: userId,
+                    IssuedAtUtc: DateTime.UtcNow,
+                    ReturnUrl: string.IsNullOrWhiteSpace(returnUrl) ? null : returnUrl
+                ));
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(
+                    "Failed to generate OAuth state. This is usually a server crypto (Data Protection) configuration issue. Try again later.",
+                    ex
+                );
+            }
 
             var request = new GoogleAuthorizationCodeRequestUrl(new Uri("https://accounts.google.com/o/oauth2/v2/auth"))
             {

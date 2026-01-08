@@ -3,6 +3,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.DataProtection;
+using System.IO;
+using System.Security.Cryptography;
 using Microsoft.OpenApi.Models;
 using RegMan.Backend.API.Common;
 using RegMan.Backend.API.Hubs;
@@ -183,7 +186,62 @@ namespace RegMan.Backend.API
             // ==================
             // Data Protection (used for integration token storage)
             // ==================
-            builder.Services.AddDataProtection();
+            try
+            {
+                static bool CanWriteDirectory(string path)
+                {
+                    try
+                    {
+                        Directory.CreateDirectory(path);
+                        var probePath = Path.Combine(path, $".dp-write-probe-{Guid.NewGuid():N}.tmp");
+                        System.IO.File.WriteAllText(probePath, "ok");
+                        System.IO.File.Delete(probePath);
+                        return true;
+                    }
+                    catch
+                    {
+                        return false;
+                    }
+                }
+
+                string? envKeysPath = Environment.GetEnvironmentVariable("DATA_PROTECTION_KEYS_PATH");
+                var candidates = new List<string>();
+
+                if (!string.IsNullOrWhiteSpace(envKeysPath))
+                    candidates.Add(envKeysPath.Trim());
+
+                // Prefer content-root local folder (works in many self-host/IIS setups)
+                candidates.Add(Path.Combine(builder.Environment.ContentRootPath, "DataProtectionKeys"));
+
+                // Fallback to per-user local app data (often writable under IIS app pool identity)
+                var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                if (!string.IsNullOrWhiteSpace(localAppData))
+                    candidates.Add(Path.Combine(localAppData, "RegMan", "DataProtectionKeys"));
+
+                // Last-resort: temp (may not survive recycle, but avoids 500s)
+                candidates.Add(Path.Combine(Path.GetTempPath(), "RegMan", "DataProtectionKeys"));
+
+                var chosen = candidates.FirstOrDefault(CanWriteDirectory);
+
+                if (string.IsNullOrWhiteSpace(chosen))
+                {
+                    builder.Services.AddDataProtection().SetApplicationName("RegMan");
+                    builder.Logging.AddFilter("Microsoft.AspNetCore.DataProtection", LogLevel.Warning);
+                }
+                else
+                {
+                    builder.Services
+                        .AddDataProtection()
+                        .PersistKeysToFileSystem(new DirectoryInfo(chosen))
+                        .SetApplicationName("RegMan");
+                    builder.Logging.AddFilter("Microsoft.AspNetCore.DataProtection", LogLevel.Information);
+                }
+            }
+            catch
+            {
+                // Never block startup due to key ring setup.
+                builder.Services.AddDataProtection().SetApplicationName("RegMan");
+            }
 
             // ==================
             // Controllers + Validation Wrapper

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using RegMan.Backend.API.Common;
 using RegMan.Backend.BusinessLayer.Contracts;
 using System.Security.Claims;
+using System.Security.Cryptography;
 
 namespace RegMan.Backend.API.Controllers
 {
@@ -52,8 +53,16 @@ namespace RegMan.Backend.API.Controllers
             {
                 // Configuration/validation errors.
                 logger.LogError(ex, "GoogleCalendar connect-url failed (likely misconfiguration) for UserId={UserId}", userId);
-                return StatusCode(StatusCodes.Status500InternalServerError,
-                    ApiResponse<string>.FailureResponse(ex.Message, StatusCodes.Status500InternalServerError));
+                return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    ApiResponse<string>.FailureResponse(ex.Message, StatusCodes.Status503ServiceUnavailable));
+            }
+            catch (CryptographicException ex)
+            {
+                logger.LogError(ex, "GoogleCalendar connect-url failed (crypto/DataProtection) for UserId={UserId}", userId);
+                return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    ApiResponse<string>.FailureResponse(
+                        "Google Calendar connect is temporarily unavailable due to a server crypto configuration issue. Please try again later.",
+                        StatusCodes.Status503ServiceUnavailable));
             }
             catch (Exception ex)
             {
@@ -91,8 +100,16 @@ namespace RegMan.Backend.API.Controllers
             catch (InvalidOperationException ex)
             {
                 logger.LogError(ex, "GoogleCalendar connect failed (likely misconfiguration) for UserId={UserId}", userId);
-                return StatusCode(StatusCodes.Status500InternalServerError,
-                    ApiResponse<string>.FailureResponse(ex.Message, StatusCodes.Status500InternalServerError));
+                return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    ApiResponse<string>.FailureResponse(ex.Message, StatusCodes.Status503ServiceUnavailable));
+            }
+            catch (CryptographicException ex)
+            {
+                logger.LogError(ex, "GoogleCalendar connect failed (crypto/DataProtection) for UserId={UserId}", userId);
+                return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    ApiResponse<string>.FailureResponse(
+                        "Google Calendar connect is temporarily unavailable due to a server crypto configuration issue. Please try again later.",
+                        StatusCodes.Status503ServiceUnavailable));
             }
             catch (Exception ex)
             {
