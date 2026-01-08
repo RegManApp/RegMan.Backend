@@ -10,6 +10,7 @@ namespace RegMan.Backend.API.Controllers
 {
     [Route("api/integrations/google-calendar")]
     [ApiController]
+    [Authorize]
     public class GoogleCalendarIntegrationController : ControllerBase
     {
         private readonly IGoogleCalendarIntegrationService googleCalendarIntegrationService;
@@ -96,7 +97,6 @@ namespace RegMan.Backend.API.Controllers
         /// Frontend should call this with JWT auth, then navigate the browser to the returned URL.
         /// </summary>
         [HttpGet("connect-url")]
-        [Authorize]
         public IActionResult GetConnectUrl([FromQuery] string? returnUrl = null)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -146,7 +146,6 @@ namespace RegMan.Backend.API.Controllers
         /// NOTE: Browser navigation will not include JWT, so frontend must use /connect-url.
         /// </summary>
         [HttpGet("connect")]
-        [Authorize]
         public IActionResult Connect([FromQuery] string? returnUrl = null)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -193,7 +192,6 @@ namespace RegMan.Backend.API.Controllers
         /// Never returns tokens.
         /// </summary>
         [HttpGet("status")]
-        [Authorize]
         public async Task<IActionResult> Status(CancellationToken cancellationToken)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -211,7 +209,6 @@ namespace RegMan.Backend.API.Controllers
         /// Best-effort; never exposes tokens.
         /// </summary>
         [HttpPost("disconnect")]
-        [Authorize]
         public async Task<IActionResult> Disconnect(CancellationToken cancellationToken)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);

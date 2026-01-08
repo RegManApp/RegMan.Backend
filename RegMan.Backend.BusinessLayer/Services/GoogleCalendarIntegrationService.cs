@@ -31,9 +31,9 @@ namespace RegMan.Backend.BusinessLayer.Services
         private readonly ILogger<GoogleCalendarIntegrationService> logger;
         private readonly IDataProtector tokenProtector;
         private readonly IDataProtector stateProtector;
-        private readonly string clientId;
-        private readonly string clientSecret;
-        private readonly string redirectUri;
+        private readonly string clientId = string.Empty;
+        private readonly string clientSecret = string.Empty;
+        private readonly string redirectUri = string.Empty;
         private readonly bool isConfigured;
         private readonly string? configurationError;
 
@@ -305,11 +305,11 @@ namespace RegMan.Backend.BusinessLayer.Services
 
             // Prefer provider (the one offering the slot) as organizer, fallback to student.
             var providerUserId = booking.OfficeHour.OwnerUserId;
-            var studentUserId = booking.Student.UserId;
+            var bookerUserId = booking.BookerUserId;
 
             var organizerUserId = await HasGoogleTokenAsync(providerUserId, cancellationToken)
                 ? providerUserId
-                : (await HasGoogleTokenAsync(studentUserId, cancellationToken) ? studentUserId : null);
+                : (await HasGoogleTokenAsync(bookerUserId, cancellationToken) ? bookerUserId : null);
 
             if (organizerUserId == null)
                 return;
@@ -332,9 +332,18 @@ namespace RegMan.Backend.BusinessLayer.Services
                 var providerEmail = booking.OfficeHour.Instructor?.User.Email
                                     ?? booking.OfficeHour.OwnerUser?.Email;
 
+                var studentEmail = booking.Student?.User?.Email;
+                if (string.IsNullOrWhiteSpace(studentEmail))
+                {
+                    logger.LogError(
+                        "Google Calendar upsert skipped for BookingId={BookingId}: missing student email.",
+                        booking.BookingId);
+                    return;
+                }
+
                 var attendees = new List<EventAttendee>
                 {
-                    new() { Email = booking.Student.User.Email }
+                    new() { Email = studentEmail }
                 };
 
                 if (!string.IsNullOrWhiteSpace(providerEmail))

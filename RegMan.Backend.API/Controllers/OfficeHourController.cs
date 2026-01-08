@@ -21,6 +21,17 @@ namespace RegMan.Backend.API.Controllers
             this.officeHoursService = officeHoursService;
         }
 
+        private bool TryGetUserId(out string userId)
+        {
+            userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
+            return !string.IsNullOrWhiteSpace(userId);
+        }
+
+        private string GetUserRoleOrEmpty()
+        {
+            return User.FindFirstValue(ClaimTypes.Role) ?? string.Empty;
+        }
+
         #region DTOs
 
         public class CreateOfficeHourDTO
@@ -70,7 +81,9 @@ namespace RegMan.Backend.API.Controllers
         [HttpGet("my-office-hours")]
         public async Task<IActionResult> GetMyOfficeHours([FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!TryGetUserId(out var userId))
+                return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized", StatusCodes.Status401Unauthorized));
+
             var officeHours = await officeHoursService.GetMyOfficeHoursAsync(userId, fromDate, toDate);
 
             return Ok(ApiResponse<object>.SuccessResponse(officeHours));
@@ -82,7 +95,9 @@ namespace RegMan.Backend.API.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateOfficeHour([FromBody] CreateOfficeHourDTO dto)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!TryGetUserId(out var userId))
+                return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized", StatusCodes.Status401Unauthorized));
+
             var officeHourId = await officeHoursService.CreateOfficeHourAsync(userId, new CreateInstructorOfficeHourDTO
             {
                 Date = dto.Date,
@@ -104,7 +119,9 @@ namespace RegMan.Backend.API.Controllers
         [HttpPost("batch")]
         public async Task<IActionResult> CreateBatchOfficeHours([FromBody] List<CreateOfficeHourDTO> dtos)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!TryGetUserId(out var userId))
+                return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized", StatusCodes.Status401Unauthorized));
+
             var mapped = dtos.Select(d => new CreateInstructorOfficeHourDTO
             {
                 Date = d.Date,
@@ -128,7 +145,9 @@ namespace RegMan.Backend.API.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateOfficeHour(int id, [FromBody] UpdateOfficeHourDTO dto)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!TryGetUserId(out var userId))
+                return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized", StatusCodes.Status401Unauthorized));
+
             await officeHoursService.UpdateOfficeHourAsync(userId, id, new UpdateInstructorOfficeHourDTO
             {
                 Date = dto.Date,
@@ -147,7 +166,9 @@ namespace RegMan.Backend.API.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteOfficeHour(int id)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!TryGetUserId(out var userId))
+                return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized", StatusCodes.Status401Unauthorized));
+
             await officeHoursService.DeleteOfficeHourAsync(userId, id);
 
             return Ok(ApiResponse<string>.SuccessResponse("Office hour deleted successfully"));
@@ -159,7 +180,9 @@ namespace RegMan.Backend.API.Controllers
         [HttpPost("bookings/{bookingId}/confirm")]
         public async Task<IActionResult> ConfirmBooking(int bookingId)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!TryGetUserId(out var userId))
+                return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized", StatusCodes.Status401Unauthorized));
+
             await officeHoursService.ConfirmBookingAsync(userId, bookingId);
 
             return Ok(ApiResponse<string>.SuccessResponse("Booking confirmed successfully"));
@@ -171,7 +194,9 @@ namespace RegMan.Backend.API.Controllers
         [HttpPut("bookings/{bookingId}/notes")]
         public async Task<IActionResult> AddInstructorNotes(int bookingId, [FromBody] InstructorNotesDTO dto)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!TryGetUserId(out var userId))
+                return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized", StatusCodes.Status401Unauthorized));
+
             await officeHoursService.AddInstructorNotesAsync(userId, bookingId, dto.Notes);
 
             return Ok(ApiResponse<string>.SuccessResponse("Notes added successfully"));
@@ -183,7 +208,9 @@ namespace RegMan.Backend.API.Controllers
         [HttpPost("bookings/{bookingId}/complete")]
         public async Task<IActionResult> CompleteBooking(int bookingId)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!TryGetUserId(out var userId))
+                return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized", StatusCodes.Status401Unauthorized));
+
             await officeHoursService.CompleteBookingAsync(userId, bookingId);
 
             return Ok(ApiResponse<string>.SuccessResponse("Booking marked as completed"));
@@ -195,7 +222,9 @@ namespace RegMan.Backend.API.Controllers
         [HttpPost("bookings/{bookingId}/no-show")]
         public async Task<IActionResult> MarkNoShow(int bookingId)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!TryGetUserId(out var userId))
+                return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized", StatusCodes.Status401Unauthorized));
+
             await officeHoursService.MarkNoShowAsync(userId, bookingId);
 
             return Ok(ApiResponse<string>.SuccessResponse("Booking marked as no-show"));
@@ -262,7 +291,9 @@ namespace RegMan.Backend.API.Controllers
         [HttpPost("{id}/book")]
         public async Task<IActionResult> BookOfficeHour(int id, [FromBody] BookOfficeHourDTO dto)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!TryGetUserId(out var userId))
+                return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized", StatusCodes.Status401Unauthorized));
+
             var result = await officeHoursService.BookOfficeHourAsync(userId, id, new BookOfficeHourRequestDTO
             {
                 Purpose = dto.Purpose,
@@ -280,7 +311,9 @@ namespace RegMan.Backend.API.Controllers
         [HttpGet("my-bookings")]
         public async Task<IActionResult> GetMyBookings([FromQuery] string? status)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!TryGetUserId(out var userId))
+                return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized", StatusCodes.Status401Unauthorized));
+
             var bookings = await officeHoursService.GetMyBookingsAsync(userId, status);
 
             return Ok(ApiResponse<object>.SuccessResponse(bookings));
@@ -293,8 +326,10 @@ namespace RegMan.Backend.API.Controllers
         [Authorize(Roles = "Student,Instructor,Admin")]
         public async Task<IActionResult> CancelBooking(int bookingId, [FromBody] CancelBookingDTO dto)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var userRole = User.FindFirstValue(ClaimTypes.Role);
+            if (!TryGetUserId(out var userId))
+                return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized", StatusCodes.Status401Unauthorized));
+
+            var userRole = GetUserRoleOrEmpty();
             await officeHoursService.CancelBookingAsync(userId, userRole, bookingId, dto.Reason);
 
             return Ok(ApiResponse<string>.SuccessResponse("Booking cancelled successfully"));

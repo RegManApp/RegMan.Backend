@@ -42,25 +42,18 @@ namespace RegMan.Backend.BusinessLayer.Services
             {
                 await AddInstructorEventsAsync(events, userId, rangeStartUtc, rangeEndUtc, cancellationToken);
             }
-            else if (userRole == "Admin")
-            {
-                // Admin view: global academic events only (avoid exposing individual course sessions).
-            }
-
-            var conflicts = ComputeConflicts(events);
 
             return new CalendarViewResponseDTO
             {
                 ViewRole = userRole,
                 DateRange = new CalendarViewDateRangeDTO { StartUtc = rangeStartUtc, EndUtc = rangeEndUtc },
                 Events = events,
-                Conflicts = conflicts
+                Conflicts = ComputeConflicts(events)
             };
         }
 
         private static List<CalendarConflictDTO> ComputeConflicts(List<CalendarViewEventDTO> events)
         {
-            // Ignore all-day academic markers for conflicts.
             static bool IsConflictRelevant(CalendarViewEventDTO e)
             {
                 if (e.Type is "registration" or "withdraw")
@@ -71,26 +64,24 @@ namespace RegMan.Backend.BusinessLayer.Services
             static bool Overlaps(CalendarViewEventDTO a, CalendarViewEventDTO b)
                 => a.StartUtc < b.EndUtc && b.StartUtc < a.EndUtc;
 
-            static (string conflictType, string severity) Classify(CalendarViewEventDTO a, CalendarViewEventDTO b)
+            static (string ConflictType, string Severity) Classify(CalendarViewEventDTO a, CalendarViewEventDTO b)
             {
-                var types = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { a.Type, b.Type };
-
-                bool hasClass = types.Contains("class") || types.Contains("teaching");
-                bool hasOfficeHour = types.Contains("office-hour") || types.Contains("office-hour-booking");
+                bool hasClass = a.Type is "class" or "teaching" || b.Type is "class" or "teaching";
+                bool hasOfficeHour = a.Type is "office-hour" or "office-hour-booking" || b.Type is "office-hour" or "office-hour-booking";
 
                 if (hasClass && hasOfficeHour)
                     return ("ClassVsOfficeHour", "Critical");
 
-                if (types.Contains("class") && types.Contains("class"))
+                if (a.Type == "class" && b.Type == "class")
                     return ("ClassOverlap", "Critical");
 
-                if (types.Contains("teaching") && types.Contains("teaching"))
+                if (a.Type == "teaching" && b.Type == "teaching")
                     return ("TeachingOverlap", "Critical");
 
-                if (types.Contains("office-hour-booking") && types.Contains("office-hour-booking"))
+                if (a.Type == "office-hour-booking" && b.Type == "office-hour-booking")
                     return ("OfficeHourBookingOverlap", "Critical");
 
-                if (types.Contains("office-hour") && types.Contains("office-hour"))
+                if (a.Type == "office-hour" && b.Type == "office-hour")
                     return ("OfficeHourOverlap", "Warning");
 
                 if (hasOfficeHour)
@@ -120,7 +111,10 @@ namespace RegMan.Backend.BusinessLayer.Services
                         continue;
 
                     var (conflictType, severity) = Classify(a, b);
-                    var key = string.CompareOrdinal(a.Id, b.Id) < 0 ? $"{a.Id}|{b.Id}|{conflictType}" : $"{b.Id}|{a.Id}|{conflictType}";
+                    var key = string.CompareOrdinal(a.Id, b.Id) < 0
+                        ? $"{a.Id}|{b.Id}|{conflictType}"
+                        : $"{b.Id}|{a.Id}|{conflictType}";
+
                     if (!seen.Add(key))
                         continue;
 
@@ -209,31 +203,45 @@ namespace RegMan.Backend.BusinessLayer.Services
                 return;
 
             // Office hour bookings (pending/confirmed)
-            var bookings = await Db.Set<OfficeHourBooking>()
-                .Include(b => b.OfficeHour)
-                    .ThenInclude(oh => oh.Instructor)
-                        .ThenInclude(i => i.User)
-                .Include(b => b.OfficeHour)
-                    .ThenInclude(oh => oh.Room)
-                .AsNoTracking()
-                .Where(b => b.StudentId == student.StudentId
-                            && b.OfficeHour.Date >= startUtc
-                            && b.OfficeHour.Date <= endUtc
-                            && (b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed))
+            var bookings = await (
+                from b in Db.Set<OfficeHourBooking>().AsNoTracking()
+                join oh in Db.Set<OfficeHour>().AsNoTracking() on b.OfficeHourId equals oh.OfficeHourId
+                join room in Db.Set<Room>().AsNoTracking() on oh.RoomId equals room.RoomId into roomJoin
+                from room in roomJoin.DefaultIfEmpty()
+                join instr in Db.Set<InstructorProfile>().AsNoTracking() on oh.InstructorId equals instr.InstructorId into instrJoin
+                from instr in instrJoin.DefaultIfEmpty()
+                join instrUser in Db.Set<BaseUser>().AsNoTracking() on instr.UserId equals instrUser.Id into instrUserJoin
+                from instrUser in instrUserJoin.DefaultIfEmpty()
+                where b.StudentId == student.StudentId
+                      && oh.Date >= startUtc
+                      && oh.Date <= endUtc
+                      && (b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed)
+                      && instrUser != null
+                select new
+                {
+                    b.BookingId,
+                    b.Status,
+                    b.Purpose,
+                    b.BookerNotes,
+                    oh.Date,
+                    oh.StartTime,
+                    oh.EndTime,
+                    InstructorName = instrUser.FullName,
+                    Room = room != null
+                        ? $"{room.RoomNumber} ({room.Building})"
+                        : "TBD"
+                })
                 .ToListAsync(cancellationToken);
 
             foreach (var booking in bookings)
             {
-                if (booking.OfficeHour?.Instructor?.User == null)
-                    continue;
-
-                var start = booking.OfficeHour.Date.Date.Add(booking.OfficeHour.StartTime);
-                var end = booking.OfficeHour.Date.Date.Add(booking.OfficeHour.EndTime);
+                var start = booking.Date.Date.Add(booking.StartTime);
+                var end = booking.Date.Date.Add(booking.EndTime);
 
                 events.Add(new CalendarViewEventDTO
                 {
                     Id = $"booking-{booking.BookingId}",
-                    Title = $"Office Hour with {booking.OfficeHour.Instructor.User.FullName}",
+                    Title = $"Office Hour with {booking.InstructorName}",
                     StartUtc = start,
                     EndUtc = end,
                     Type = "office-hour-booking",
@@ -241,10 +249,8 @@ namespace RegMan.Backend.BusinessLayer.Services
                     ExtendedProps = new OfficeHourBookingPropsDTO
                     {
                         BookingId = booking.BookingId,
-                        InstructorName = booking.OfficeHour.Instructor.User.FullName,
-                        Room = booking.OfficeHour.Room != null
-                            ? $"{booking.OfficeHour.Room.RoomNumber} ({booking.OfficeHour.Room.Building})"
-                            : "TBD",
+                        InstructorName = booking.InstructorName,
+                        Room = booking.Room,
                         Purpose = booking.Purpose,
                         Notes = booking.BookerNotes
                     }
@@ -288,14 +294,14 @@ namespace RegMan.Backend.BusinessLayer.Services
                             events.Add(new CalendarViewEventDTO
                             {
                                 Id = $"class-{enrollment.EnrollmentId}-{slot.ScheduleSlotId}-{currentDate:yyyyMMdd}",
-                                Title = $"{enrollment.Section.Course?.CourseName ?? "Unknown"} ({enrollment.Section.SectionName})",
+                                Title = $"{enrollment.Section.Course?.CourseName ?? "Unknown"} ({enrollment.Section.SectionName ?? string.Empty})",
                                 StartUtc = start,
                                 EndUtc = end,
                                 Type = "class",
                                 ExtendedProps = new CourseSessionPropsDTO
                                 {
                                     CourseCode = enrollment.Section.Course?.CourseCode ?? string.Empty,
-                                    SectionName = enrollment.Section.SectionName,
+                                    SectionName = enrollment.Section.SectionName ?? string.Empty,
                                     Room = slot.Room != null
                                         ? $"{slot.Room.RoomNumber} ({slot.Room.Building})"
                                         : "TBD"
@@ -327,8 +333,7 @@ namespace RegMan.Backend.BusinessLayer.Services
             var officeHours = await Db.Set<OfficeHour>()
                 .Include(oh => oh.Room)
                 .Include(oh => oh.Bookings)
-                    .ThenInclude(b => b.Student)
-                        .ThenInclude(s => s.User)
+                    .ThenInclude(b => b.BookerUser)
                 .AsNoTracking()
                 .Where(oh => oh.InstructorId == instructor.InstructorId
                             && oh.Date >= startUtc
@@ -341,15 +346,32 @@ namespace RegMan.Backend.BusinessLayer.Services
                 var activeBooking = oh.Bookings?.FirstOrDefault(b =>
                     b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed);
 
+                InstructorOfficeHourActiveBookingPropsDTO? activeBookingProps = null;
+                string title;
+                if (activeBooking?.BookerUser != null)
+                {
+                    var bookerUser = activeBooking.BookerUser;
+                    title = $"Office Hour: {bookerUser.FullName}";
+                    activeBookingProps = new InstructorOfficeHourActiveBookingPropsDTO
+                    {
+                        BookingId = activeBooking.BookingId,
+                        StudentName = bookerUser.FullName,
+                        Purpose = activeBooking.Purpose,
+                        Status = activeBooking.Status.ToString()
+                    };
+                }
+                else
+                {
+                    title = "Office Hour (Available)";
+                }
+
                 var start = oh.Date.Date.Add(oh.StartTime);
                 var end = oh.Date.Date.Add(oh.EndTime);
 
                 events.Add(new CalendarViewEventDTO
                 {
                     Id = $"office-hour-{oh.OfficeHourId}",
-                    Title = activeBooking?.Student?.User != null
-                        ? $"Office Hour: {activeBooking.Student.User.FullName}"
-                        : "Office Hour (Available)",
+                    Title = title,
                     StartUtc = start,
                     EndUtc = end,
                     Type = "office-hour",
@@ -361,15 +383,7 @@ namespace RegMan.Backend.BusinessLayer.Services
                             ? $"{oh.Room.RoomNumber} ({oh.Room.Building})"
                             : "TBD",
                         Notes = oh.Notes,
-                        Booking = activeBooking?.Student?.User != null
-                            ? new InstructorOfficeHourActiveBookingPropsDTO
-                            {
-                                BookingId = activeBooking.BookingId,
-                                StudentName = activeBooking.Student.User.FullName,
-                                Purpose = activeBooking.Purpose,
-                                Status = activeBooking.Status.ToString()
-                            }
-                            : null
+                        Booking = activeBookingProps
                     }
                 });
             }
@@ -386,7 +400,7 @@ namespace RegMan.Backend.BusinessLayer.Services
 
             foreach (var slot in scheduleSlots)
             {
-                if (slot.TimeSlot == null || slot.Section?.Course == null)
+                if (slot.TimeSlot == null || slot.Section == null || slot.Section.Course == null)
                     continue;
 
                 var currentDate = startUtc.Date;
@@ -401,14 +415,14 @@ namespace RegMan.Backend.BusinessLayer.Services
                         events.Add(new CalendarViewEventDTO
                         {
                             Id = $"teaching-{slot.ScheduleSlotId}-{currentDate:yyyyMMdd}",
-                            Title = $"{slot.Section.Course.CourseName} ({slot.Section.SectionName})",
+                            Title = $"{slot.Section.Course.CourseName} ({slot.Section.SectionName ?? string.Empty})",
                             StartUtc = start,
                             EndUtc = end,
                             Type = "teaching",
                             ExtendedProps = new CourseSessionPropsDTO
                             {
                                 CourseCode = slot.Section.Course.CourseCode,
-                                SectionName = slot.Section.SectionName,
+                                SectionName = slot.Section.SectionName ?? string.Empty,
                                 Room = slot.Room != null
                                     ? $"{slot.Room.RoomNumber} ({slot.Room.Building})"
                                     : "TBD"

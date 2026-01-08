@@ -57,6 +57,7 @@ namespace RegMan.Backend.DAL.Repositories
             var conversations = await dbContext.ConversationParticipants
                 .Where(cp => cp.UserId == userId)
                 .Select(cp => cp.Conversation)
+                .OfType<Conversation>()
                 .ToListAsync();
             return conversations;
         }

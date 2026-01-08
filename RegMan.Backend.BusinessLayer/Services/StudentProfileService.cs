@@ -61,7 +61,7 @@ namespace RegMan.Backend.BusinessLayer.Services
 
             StudentProfile student = new StudentProfile
             {
-                FamilyContact = Sanitizer.Sanitize(studentDTO.FamilyContact),
+                FamilyContact = Sanitizer.Sanitize(studentDTO.FamilyContact ?? string.Empty),
                 CompletedCredits = 0,
                 RegisteredCredits = 0,
                 GPA = 0.0,
@@ -172,10 +172,10 @@ namespace RegMan.Backend.BusinessLayer.Services
                 throw new KeyNotFoundException($"Student with ID {studentDTO.StudentId} does not exist.");
 
             student.User.FullName = Sanitizer.Sanitize(studentDTO.FullName);
-            student.User.Address = Sanitizer.Sanitize(studentDTO.Address);
+            student.User.Address = Sanitizer.Sanitize(studentDTO.Address ?? string.Empty);
             student.RegisteredCredits = studentDTO.RegisteredCredits;
             student.GPA = studentDTO.GPA;
-            student.FamilyContact = Sanitizer.Sanitize(studentDTO.FamilyContact);
+            student.FamilyContact = Sanitizer.Sanitize(studentDTO.FamilyContact ?? string.Empty);
 
             studentRepository.Update(student);
             await unitOfWork.SaveChangesAsync();

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using RegMan.Backend.API.Common;
@@ -14,6 +15,7 @@ namespace RegMan.Backend.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class DevToolsController : ControllerBase
     {
         private readonly IWebHostEnvironment env;
@@ -45,6 +47,7 @@ namespace RegMan.Backend.API.Controllers
         }
 
         [HttpPost("seed")]
+        [AllowAnonymous]
         public async Task<IActionResult> SeedDemoData()
         {
             if (!IsEnabled())
@@ -65,6 +68,7 @@ namespace RegMan.Backend.API.Controllers
         }
 
         [HttpPost("reset")]
+        [AllowAnonymous]
         public async Task<IActionResult> ResetDatabaseAndSeedDemoData()
         {
             if (!IsEnabled())
@@ -87,6 +91,7 @@ namespace RegMan.Backend.API.Controllers
         }
 
         [HttpGet("users")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetDemoUsers()
         {
             if (!IsEnabled())
@@ -97,6 +102,7 @@ namespace RegMan.Backend.API.Controllers
         }
 
         [HttpPost("login-as")]
+        [AllowAnonymous]
         public async Task<IActionResult> LoginAs([FromBody] LoginAsRequestDto request)
         {
             if (!IsEnabled())

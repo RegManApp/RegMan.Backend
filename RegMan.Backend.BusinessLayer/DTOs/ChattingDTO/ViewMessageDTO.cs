@@ -13,7 +13,7 @@ namespace RegMan.Backend.BusinessLayer.DTOs.ChattingDTO
         public int ConversationId { get; set; }
         public string? ClientMessageId { get; set; }
         public DateTime? ServerReceivedAt { get; set; }
-        public string SenderId { get; set; }
+        public required string SenderId { get; set; }
         public string SenderName { get; set; } = string.Empty;
         public string? SenderRole { get; set; }
         public bool IsSystem { get; set; }

@@ -47,23 +47,35 @@ namespace RegMan.Backend.BusinessLayer.Services
             if (student != null)
             {
                 var mins = GetMinutesBefore(ReminderTriggerType.OfficeHour);
-                var bookings = await context.OfficeHourBookings
-                    .Include(b => b.OfficeHour)
-                        .ThenInclude(oh => oh.Instructor)
-                            .ThenInclude(i => i.User)
-                    .AsNoTracking()
-                    .Where(b => b.StudentId == student.StudentId
-                                && (b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed)
-                                && b.OfficeHour.Date >= nowUtc.Date
-                                && b.OfficeHour.Date <= horizonUtc)
+                var bookings = await (
+                    from b in context.OfficeHourBookings.AsNoTracking()
+                    join oh in context.OfficeHours.AsNoTracking() on b.OfficeHourId equals oh.OfficeHourId
+                    join owner in context.Users.AsNoTracking() on oh.OwnerUserId equals owner.Id
+                    join instr in context.Instructors.AsNoTracking() on oh.InstructorId equals instr.InstructorId into instrJoin
+                    from instr in instrJoin.DefaultIfEmpty()
+                    join instrUser in context.Users.AsNoTracking() on instr.UserId equals instrUser.Id into instrUserJoin
+                    from instrUser in instrUserJoin.DefaultIfEmpty()
+                    where b.StudentId == student.StudentId
+                          && (b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed)
+                          && oh.Date >= nowUtc.Date
+                          && oh.Date <= horizonUtc
+                    select new
+                    {
+                        b.BookingId,
+                        oh.Date,
+                        oh.StartTime,
+                        ProviderName = instrUser != null ? instrUser.FullName : owner.FullName
+                    })
                     .ToListAsync(cancellationToken);
 
                 foreach (var booking in bookings)
                 {
-                    var startUtc = booking.OfficeHour.Date.Date.Add(booking.OfficeHour.StartTime);
+                    var startUtc = booking.Date.Date.Add(booking.StartTime);
                     var scheduledAt = startUtc.AddMinutes(-mins);
                     if (scheduledAt <= nowUtc.AddMinutes(-1))
                         continue;
+
+                    var instructorName = string.IsNullOrWhiteSpace(booking.ProviderName) ? "Instructor" : booking.ProviderName;
 
                     await UpsertScheduledAsync(
                         userId,
@@ -72,7 +84,7 @@ namespace RegMan.Backend.BusinessLayer.Services
                         sourceEntityId: booking.BookingId,
                         scheduledAtUtc: scheduledAt,
                         title: "Upcoming Office Hour",
-                        message: $"Office hour with {booking.OfficeHour.Instructor.User.FullName} starts at {startUtc:HH:mm} UTC.",
+                        message: $"Office hour with {instructorName} starts at {startUtc:HH:mm} UTC.",
                         notificationEntityType: "OfficeHourBooking",
                         notificationEntityId: booking.BookingId,
                         cancellationToken);
@@ -84,25 +96,31 @@ namespace RegMan.Backend.BusinessLayer.Services
             if (instructor != null)
             {
                 var mins = GetMinutesBefore(ReminderTriggerType.OfficeHour);
-                var bookings = await context.OfficeHourBookings
-                    .Include(b => b.OfficeHour)
-                        .ThenInclude(oh => oh.Instructor)
-                            .ThenInclude(i => i.User)
-                    .Include(b => b.Student)
-                        .ThenInclude(s => s.User)
-                    .AsNoTracking()
-                    .Where(b => b.OfficeHour.InstructorId == instructor.InstructorId
-                                && (b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed)
-                                && b.OfficeHour.Date >= nowUtc.Date
-                                && b.OfficeHour.Date <= horizonUtc)
+                var bookings = await (
+                    from b in context.OfficeHourBookings.AsNoTracking()
+                    join oh in context.OfficeHours.AsNoTracking() on b.OfficeHourId equals oh.OfficeHourId
+                    join booker in context.Users.AsNoTracking() on b.BookerUserId equals booker.Id
+                    where oh.InstructorId == instructor.InstructorId
+                          && (b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed)
+                          && oh.Date >= nowUtc.Date
+                          && oh.Date <= horizonUtc
+                    select new
+                    {
+                        b.BookingId,
+                        oh.Date,
+                        oh.StartTime,
+                        BookerName = booker.FullName
+                    })
                     .ToListAsync(cancellationToken);
 
                 foreach (var booking in bookings)
                 {
-                    var startUtc = booking.OfficeHour.Date.Date.Add(booking.OfficeHour.StartTime);
+                    var startUtc = booking.Date.Date.Add(booking.StartTime);
                     var scheduledAt = startUtc.AddMinutes(-mins);
                     if (scheduledAt <= nowUtc.AddMinutes(-1))
                         continue;
+
+                    var studentName = string.IsNullOrWhiteSpace(booking.BookerName) ? "Student" : booking.BookerName;
 
                     await UpsertScheduledAsync(
                         userId,
@@ -111,7 +129,7 @@ namespace RegMan.Backend.BusinessLayer.Services
                         sourceEntityId: booking.BookingId,
                         scheduledAtUtc: scheduledAt,
                         title: "Upcoming Office Hour",
-                        message: $"Office hour with {booking.Student.User.FullName} starts at {startUtc:HH:mm} UTC.",
+                        message: $"Office hour with {studentName} starts at {startUtc:HH:mm} UTC.",
                         notificationEntityType: "OfficeHourBooking",
                         notificationEntityId: booking.BookingId,
                         cancellationToken);
@@ -123,55 +141,76 @@ namespace RegMan.Backend.BusinessLayer.Services
             {
                 var mins = GetMinutesBefore(ReminderTriggerType.Class);
                 var enrollments = await context.Enrollments
-                    .Include(e => e.Section)
-                        .ThenInclude(s => s!.Course)
-                    .Include(e => e.Section)
-                        .ThenInclude(s => s!.Slots)
-                            .ThenInclude(sl => sl.TimeSlot)
                     .AsNoTracking()
                     .Where(e => e.StudentId == student.StudentId
                                 && (e.Status == Status.Enrolled || e.Status == Status.Pending))
+                    .Select(e => new { e.EnrollmentId, e.SectionId })
                     .ToListAsync(cancellationToken);
 
                 var startDate = nowUtc.Date;
                 var endDate = horizonUtc.Date;
 
-                foreach (var enrollment in enrollments)
+                if (enrollments.Count > 0)
                 {
-                    if (enrollment.Section?.Slots == null)
-                        continue;
+                    var sectionIds = enrollments
+                        .Select(e => e.SectionId)
+                        .Distinct()
+                        .ToList();
 
-                    foreach (var slot in enrollment.Section.Slots)
+                    var scheduleSlots = await context.ScheduleSlots
+                        .AsNoTracking()
+                        .Where(ss => sectionIds.Contains(ss.SectionId))
+                        .Include(ss => ss.TimeSlot)
+                        .Include(ss => ss.Section)
+                            .ThenInclude(s => s.Course)
+                        .Select(ss => new
+                        {
+                            ss.SectionId,
+                            ss.ScheduleSlotId,
+                            ss.TimeSlot.Day,
+                            ss.TimeSlot.StartTime,
+                            CourseName = ss.Section.Course.CourseName
+                        })
+                        .ToListAsync(cancellationToken);
+
+                    var slotsBySection = scheduleSlots
+                        .GroupBy(s => s.SectionId)
+                        .ToDictionary(g => g.Key, g => g.ToList());
+
+                    foreach (var enrollment in enrollments)
                     {
-                        if (slot.TimeSlot == null)
+                        if (!slotsBySection.TryGetValue(enrollment.SectionId, out var slotsForSection))
                             continue;
 
-                        var current = startDate;
-                        while (current <= endDate)
+                        foreach (var slot in slotsForSection)
                         {
-                            if (current.DayOfWeek == slot.TimeSlot.Day)
+                            var current = startDate;
+                            while (current <= endDate)
                             {
-                                var classStartUtc = current.Add(slot.TimeSlot.StartTime);
-                                var scheduledAt = classStartUtc.AddMinutes(-mins);
-                                if (scheduledAt > nowUtc.AddMinutes(-1))
+                                if (current.DayOfWeek == slot.Day)
                                 {
-                                    var sessionKey = $"{enrollment.EnrollmentId}-{slot.ScheduleSlotId}-{current:yyyyMMdd}";
-                                    await UpsertScheduledAsync(
-                                        userId,
-                                        ReminderTriggerType.Class,
-                                        sourceEntityType: "ClassSession",
-                                        sourceEntityId: null,
-                                        scheduledAtUtc: scheduledAt,
-                                        title: "Upcoming Class",
-                                        message: $"{enrollment.Section.Course?.CourseName ?? "Class"} starts at {classStartUtc:HH:mm} UTC.",
-                                        notificationEntityType: "ClassSession",
-                                        notificationEntityId: null,
-                                        cancellationToken,
-                                        dedupeKey: sessionKey);
+                                    var classStartUtc = current.Add(slot.StartTime);
+                                    var scheduledAt = classStartUtc.AddMinutes(-mins);
+                                    if (scheduledAt > nowUtc.AddMinutes(-1))
+                                    {
+                                        var sessionKey = $"{enrollment.EnrollmentId}-{slot.ScheduleSlotId}-{current:yyyyMMdd}";
+                                        await UpsertScheduledAsync(
+                                            userId,
+                                            ReminderTriggerType.Class,
+                                            sourceEntityType: "ClassSession",
+                                            sourceEntityId: null,
+                                            scheduledAtUtc: scheduledAt,
+                                            title: "Upcoming Class",
+                                            message: $"{slot.CourseName ?? "Class"} starts at {classStartUtc:HH:mm} UTC.",
+                                            notificationEntityType: "ClassSession",
+                                            notificationEntityId: null,
+                                            cancellationToken,
+                                            dedupeKey: sessionKey);
+                                    }
                                 }
-                            }
 
-                            current = current.AddDays(1);
+                                current = current.AddDays(1);
+                            }
                         }
                     }
                 }
@@ -194,7 +233,7 @@ namespace RegMan.Backend.BusinessLayer.Services
 
                 foreach (var slot in scheduleSlots)
                 {
-                    if (slot.TimeSlot == null || slot.Section?.Course == null)
+                    if (slot.TimeSlot == null || slot.Section == null || slot.Section.Course == null)
                         continue;
 
                     var current = startDate;

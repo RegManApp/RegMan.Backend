@@ -8,10 +8,10 @@ namespace RegMan.Backend.DAL.Entities.Calendar
         public int CalendarAuditEntryId { get; set; }
 
         [Required]
-        public string ActorUserId { get; set; } = null!;
+        public string ActorUserId { get; set; } = string.Empty;
 
         [Required]
-        public string ActorEmail { get; set; } = null!;
+        public string ActorEmail { get; set; } = string.Empty;
 
         [Required]
         [MaxLength(64)]
@@ -23,13 +23,13 @@ namespace RegMan.Backend.DAL.Entities.Calendar
 
         [Required]
         [MaxLength(16)]
-        public string Action { get; set; } = null!; // UPDATE | RESTORE
+        public string Action { get; set; } = string.Empty; // UPDATE | RESTORE
 
         [Required]
-        public string BeforeJson { get; set; } = null!;
+        public string BeforeJson { get; set; } = string.Empty;
 
         [Required]
-        public string AfterJson { get; set; } = null!;
+        public string AfterJson { get; set; } = string.Empty;
 
         public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     }

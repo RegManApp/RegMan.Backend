@@ -27,6 +27,8 @@ namespace RegMan.Backend.BusinessLayer.Services
             this.messageUserDeletionRepository = unitOfWork.MessageUserDeletions;
         }
 
+        private DbContext Db => unitOfWork.Context;
+
         private static bool IsAnnouncementsConversation(Conversation? conversation)
         {
             return conversation != null
@@ -233,25 +235,29 @@ namespace RegMan.Backend.BusinessLayer.Services
                     .Where(m => m.ConversationId == conversationId)
                     .Where(m => m.SenderId == senderId)
                     .Where(m => m.ClientMessageId == clientMessageId)
-                    .Select(m => new ViewMessageDTO
-                    {
-                        MessageId = m.MessageId,
-                        ConversationId = m.ConversationId,
-                        ClientMessageId = m.ClientMessageId,
-                        ServerReceivedAt = m.ServerReceivedAt,
-                        Content = m.IsDeletedForEveryone ? "[deleted]" : m.TextMessage,
-                        SenderId = m.SenderId,
-                        SenderName = m.Sender.FullName,
-                        SenderRole = m.Sender.Role,
-                        IsSystem = m.Sender.Role == SystemUserConstants.SystemRole,
-                        Status = m.Status,
-                        Timestamp = m.SentAt,
-                        IsDeletedForEveryone = m.IsDeletedForEveryone,
-                        DeletedAt = m.DeletedAt,
-                        DeletedByUserId = m.DeletedByUserId,
-                        IsRead = m.IsRead,
-                        ReadAt = m.ReadAt
-                    })
+                    .Join(
+                        Db.Set<BaseUser>().AsNoTracking(),
+                        m => m.SenderId,
+                        u => u.Id,
+                        (m, u) => new ViewMessageDTO
+                        {
+                            MessageId = m.MessageId,
+                            ConversationId = m.ConversationId,
+                            ClientMessageId = m.ClientMessageId,
+                            ServerReceivedAt = m.ServerReceivedAt,
+                            Content = m.IsDeletedForEveryone ? "[deleted]" : m.TextMessage,
+                            SenderId = m.SenderId,
+                            SenderName = u.FullName ?? string.Empty,
+                            SenderRole = u.Role ?? string.Empty,
+                            IsSystem = u.Role == SystemUserConstants.SystemRole,
+                            Status = m.Status,
+                            Timestamp = m.SentAt,
+                            IsDeletedForEveryone = m.IsDeletedForEveryone,
+                            DeletedAt = m.DeletedAt,
+                            DeletedByUserId = m.DeletedByUserId,
+                            IsRead = m.IsRead,
+                            ReadAt = m.ReadAt
+                        })
                     .FirstOrDefaultAsync();
 
                 if (existing != null)
@@ -287,25 +293,29 @@ namespace RegMan.Backend.BusinessLayer.Services
                         .Where(m => m.ConversationId == conversationId)
                         .Where(m => m.SenderId == senderId)
                         .Where(m => m.ClientMessageId == clientMessageId)
-                        .Select(m => new ViewMessageDTO
-                        {
-                            MessageId = m.MessageId,
-                            ConversationId = m.ConversationId,
-                            ClientMessageId = m.ClientMessageId,
-                            ServerReceivedAt = m.ServerReceivedAt,
-                            Content = m.IsDeletedForEveryone ? "[deleted]" : m.TextMessage,
-                            SenderId = m.SenderId,
-                            SenderName = m.Sender.FullName,
-                            SenderRole = m.Sender.Role,
-                            IsSystem = m.Sender.Role == SystemUserConstants.SystemRole,
-                            Status = m.Status,
-                            Timestamp = m.SentAt,
-                            IsDeletedForEveryone = m.IsDeletedForEveryone,
-                            DeletedAt = m.DeletedAt,
-                            DeletedByUserId = m.DeletedByUserId,
-                            IsRead = m.IsRead,
-                            ReadAt = m.ReadAt
-                        })
+                        .Join(
+                            Db.Set<BaseUser>().AsNoTracking(),
+                            m => m.SenderId,
+                            u => u.Id,
+                            (m, u) => new ViewMessageDTO
+                            {
+                                MessageId = m.MessageId,
+                                ConversationId = m.ConversationId,
+                                ClientMessageId = m.ClientMessageId,
+                                ServerReceivedAt = m.ServerReceivedAt,
+                                Content = m.IsDeletedForEveryone ? "[deleted]" : m.TextMessage,
+                                SenderId = m.SenderId,
+                                SenderName = u.FullName ?? string.Empty,
+                                SenderRole = u.Role ?? string.Empty,
+                                IsSystem = u.Role == SystemUserConstants.SystemRole,
+                                Status = m.Status,
+                                Timestamp = m.SentAt,
+                                IsDeletedForEveryone = m.IsDeletedForEveryone,
+                                DeletedAt = m.DeletedAt,
+                                DeletedByUserId = m.DeletedByUserId,
+                                IsRead = m.IsRead,
+                                ReadAt = m.ReadAt
+                            })
                         .FirstOrDefaultAsync();
 
                     if (dup != null)
@@ -323,27 +333,31 @@ namespace RegMan.Backend.BusinessLayer.Services
             var dto = await messageRepository.GetAllAsQueryable()
                 .AsNoTracking()
                 .Where(m => m.MessageId == message.MessageId)
-                .Select(m => new ViewMessageDTO
-                {
-                    MessageId = m.MessageId,
-                    ConversationId = m.ConversationId,
-                    ClientMessageId = m.ClientMessageId,
-                    ServerReceivedAt = m.ServerReceivedAt,
-                    Content = m.IsDeletedForEveryone ? "[deleted]" : m.TextMessage,
-                    SenderId = m.SenderId,
-                    SenderName = m.Sender.FullName,
-                    SenderRole = m.Sender.Role,
-                    IsSystem = m.Sender.Role == SystemUserConstants.SystemRole,
-                    Status = m.Status,
-                    Timestamp = m.SentAt
-                    ,
-                    IsDeletedForEveryone = m.IsDeletedForEveryone,
-                    DeletedAt = m.DeletedAt,
-                    DeletedByUserId = m.DeletedByUserId,
-                    IsRead = m.IsRead
-                    ,
-                    ReadAt = m.ReadAt
-                })
+                .Join(
+                    Db.Set<BaseUser>().AsNoTracking(),
+                    m => m.SenderId,
+                    u => u.Id,
+                    (m, u) => new ViewMessageDTO
+                    {
+                        MessageId = m.MessageId,
+                        ConversationId = m.ConversationId,
+                        ClientMessageId = m.ClientMessageId,
+                        ServerReceivedAt = m.ServerReceivedAt,
+                        Content = m.IsDeletedForEveryone ? "[deleted]" : m.TextMessage,
+                        SenderId = m.SenderId,
+                        SenderName = u.FullName ?? string.Empty,
+                        SenderRole = u.Role ?? string.Empty,
+                        IsSystem = u.Role == SystemUserConstants.SystemRole,
+                        Status = m.Status,
+                        Timestamp = m.SentAt
+                        ,
+                        IsDeletedForEveryone = m.IsDeletedForEveryone,
+                        DeletedAt = m.DeletedAt,
+                        DeletedByUserId = m.DeletedByUserId,
+                        IsRead = m.IsRead
+                        ,
+                        ReadAt = m.ReadAt
+                    })
                 .FirstAsync();
 
             return dto;
@@ -448,32 +462,46 @@ namespace RegMan.Backend.BusinessLayer.Services
             if (string.IsNullOrWhiteSpace(userId))
                 throw new UnauthorizedException();
 
-            var conversations = await participantRepository.GetAllAsQueryable()
-                .AsNoTracking()
-                .Where(cp => cp.UserId == userId)
-                .Select(cp => new ViewConversationSummaryDTO
+            var conversations = await (
+                from cp in participantRepository.GetAllAsQueryable().AsNoTracking()
+                join c in Db.Set<Conversation>().AsNoTracking() on cp.ConversationId equals c.ConversationId
+                where cp.UserId == userId
+                select new ViewConversationSummaryDTO
                 {
-                    ConversationId = cp.Conversation.ConversationId,
-                    LastMessageSnippet = cp.Conversation.Messages
+                    ConversationId = cp.ConversationId,
+                    LastMessageSnippet = messageRepository.GetAllAsQueryable()
+                        .AsNoTracking()
+                        .Where(m => m.ConversationId == cp.ConversationId)
                         .Where(m => !messageUserDeletionRepository.GetAllAsQueryable()
                             .Any(d => d.UserId == userId && d.MessageId == m.MessageId))
                         .OrderByDescending(m => m.MessageId)
                         .Select(m =>
                             m.IsDeletedForEveryone
                                 ? "[deleted]"
-                                : (m.TextMessage.Length > 30 ? m.TextMessage.Substring(0, 30) + "..." : m.TextMessage))
+                                : (((m.TextMessage ?? string.Empty).Length > 30)
+                                    ? (m.TextMessage ?? string.Empty).Substring(0, 30) + "..."
+                                    : (m.TextMessage ?? string.Empty)))
                         .FirstOrDefault() ?? string.Empty,
-                    LastMessageTime = (cp.Conversation.LastActivityAt ?? cp.Conversation.Messages
+                    LastMessageTime = (c.LastActivityAt ?? messageRepository.GetAllAsQueryable()
+                        .AsNoTracking()
+                        .Where(m => m.ConversationId == cp.ConversationId)
                         .Where(m => !messageUserDeletionRepository.GetAllAsQueryable()
                             .Any(d => d.UserId == userId && d.MessageId == m.MessageId))
                         .OrderByDescending(m => m.MessageId)
                         .Select(m => (DateTime?)m.SentAt)
                         .FirstOrDefault()) ?? DateTime.MinValue,
-                    ConversationDisplayName = cp.Conversation.Participants
-                        .Where(p => p.UserId != userId)
-                        .Select(p => p.User.FullName)
+                    ConversationDisplayName = participantRepository.GetAllAsQueryable()
+                        .AsNoTracking()
+                        .Where(p => p.ConversationId == cp.ConversationId && p.UserId != userId)
+                        .Join(
+                            Db.Set<BaseUser>().AsNoTracking(),
+                            p => p.UserId,
+                            u => u.Id,
+                            (p, u) => u.FullName)
                         .FirstOrDefault() ?? "No Participants",
-                    UnreadCount = cp.Conversation.Messages
+                    UnreadCount = messageRepository.GetAllAsQueryable()
+                        .AsNoTracking()
+                        .Where(m => m.ConversationId == cp.ConversationId)
                         .Where(m => m.SenderId != userId)
                         .Where(m => !m.IsDeletedForEveryone)
                         .Where(m => m.MessageId > (cp.LastReadMessageId ?? 0))
@@ -481,7 +509,7 @@ namespace RegMan.Backend.BusinessLayer.Services
                             .Any(d => d.UserId == userId && d.MessageId == m.MessageId))
                         .Count()
                 })
-                .OrderByDescending(c => c.LastMessageTime)
+                .OrderByDescending(x => x.LastMessageTime)
                 .ToListAsync();
 
             if (conversations == null)
@@ -532,25 +560,29 @@ namespace RegMan.Backend.BusinessLayer.Services
                 .Take(pageSize)
                 .OrderBy(m => m.SentAt);
             List<ViewMessageDTO> Messages = await msgsQuery.Select(
-                m => new ViewMessageDTO
-                {
-                    Content = m.IsDeletedForEveryone ? "[deleted]" : m.TextMessage,
-                    SenderId = m.SenderId,
-                    SenderName = m.Sender.FullName,
-                    SenderRole = m.Sender.Role,
-                    IsSystem = m.Sender.Role == SystemUserConstants.SystemRole,
-                    MessageId = m.MessageId,
-                    ClientMessageId = m.ClientMessageId,
-                    ServerReceivedAt = m.ServerReceivedAt,
-                    Status = m.Status,
-                    Timestamp = m.SentAt,
-                    IsDeletedForEveryone = m.IsDeletedForEveryone,
-                    DeletedAt = m.DeletedAt,
-                    DeletedByUserId = m.DeletedByUserId,
-                    IsRead = m.IsRead,
-                    ReadAt = m.ReadAt
-                }
-                ).ToListAsync();
+                m => m).Join(
+                    Db.Set<BaseUser>().AsNoTracking(),
+                    m => m.SenderId,
+                    u => u.Id,
+                    (m, u) => new ViewMessageDTO
+                    {
+                        Content = m.IsDeletedForEveryone ? "[deleted]" : m.TextMessage,
+                        SenderId = m.SenderId,
+                        SenderName = u.FullName ?? string.Empty,
+                        SenderRole = u.Role ?? string.Empty,
+                        IsSystem = u.Role == SystemUserConstants.SystemRole,
+                        MessageId = m.MessageId,
+                        ClientMessageId = m.ClientMessageId,
+                        ServerReceivedAt = m.ServerReceivedAt,
+                        Status = m.Status,
+                        Timestamp = m.SentAt,
+                        IsDeletedForEveryone = m.IsDeletedForEveryone,
+                        DeletedAt = m.DeletedAt,
+                        DeletedByUserId = m.DeletedByUserId,
+                        IsRead = m.IsRead,
+                        ReadAt = m.ReadAt
+                    })
+                .ToListAsync();
             if (Messages.Count == 0)
             {
                 validationMessage = "No previous messages.";
@@ -566,13 +598,13 @@ namespace RegMan.Backend.BusinessLayer.Services
                     displayName = string.Join(", ",
                         conversation.Participants
                             .Where(p => p.UserId != userId)
-                            .Select(p => p.User.FullName)
+                            .Select(p => p.User?.FullName ?? string.Empty)
                             .Take(3));
                 }
 
             }
             else
-                displayName = participants.Where(p => p.UserId != userId).Select(p => p.User.FullName).FirstOrDefault() ?? string.Empty;
+                displayName = participants.Where(p => p.UserId != userId).Select(p => p.User?.FullName ?? string.Empty).FirstOrDefault() ?? string.Empty;
 
             return new ViewConversationDTO
             {
@@ -614,25 +646,29 @@ namespace RegMan.Backend.BusinessLayer.Services
                 .OrderByDescending(m => m.MessageId)
                 .Take(pageSize)
                 .OrderBy(m => m.MessageId)
-                .Select(m => new ViewMessageDTO
-                {
-                    MessageId = m.MessageId,
-                    ConversationId = m.ConversationId,
-                    ClientMessageId = m.ClientMessageId,
-                    ServerReceivedAt = m.ServerReceivedAt,
-                    Content = m.IsDeletedForEveryone ? "[deleted]" : m.TextMessage,
-                    SenderId = m.SenderId,
-                    SenderName = m.Sender.FullName,
-                    SenderRole = m.Sender.Role,
-                    IsSystem = m.Sender.Role == SystemUserConstants.SystemRole,
-                    Status = m.Status,
-                    Timestamp = m.SentAt,
-                    IsDeletedForEveryone = m.IsDeletedForEveryone,
-                    DeletedAt = m.DeletedAt,
-                    DeletedByUserId = m.DeletedByUserId,
-                    IsRead = m.IsRead,
-                    ReadAt = m.ReadAt
-                })
+                .Join(
+                    Db.Set<BaseUser>().AsNoTracking(),
+                    m => m.SenderId,
+                    u => u.Id,
+                    (m, u) => new ViewMessageDTO
+                    {
+                        MessageId = m.MessageId,
+                        ConversationId = m.ConversationId,
+                        ClientMessageId = m.ClientMessageId,
+                        ServerReceivedAt = m.ServerReceivedAt,
+                        Content = m.IsDeletedForEveryone ? "[deleted]" : m.TextMessage,
+                        SenderId = m.SenderId,
+                        SenderName = u.FullName ?? string.Empty,
+                        SenderRole = u.Role ?? string.Empty,
+                        IsSystem = u.Role == SystemUserConstants.SystemRole,
+                        Status = m.Status,
+                        Timestamp = m.SentAt,
+                        IsDeletedForEveryone = m.IsDeletedForEveryone,
+                        DeletedAt = m.DeletedAt,
+                        DeletedByUserId = m.DeletedByUserId,
+                        IsRead = m.IsRead,
+                        ReadAt = m.ReadAt
+                    })
                 .ToListAsync();
 
             var participants = await convoRepository.GetConversationParticipantsAsync(conversationId);
@@ -647,13 +683,13 @@ namespace RegMan.Backend.BusinessLayer.Services
                     displayName = string.Join(", ",
                         allowedConversation.Participants
                             .Where(p => p.UserId != userId)
-                            .Select(p => p.User.FullName)
+                            .Select(p => p.User?.FullName ?? string.Empty)
                             .Take(3));
                 }
             }
             else
             {
-                displayName = participants.Where(p => p.UserId != userId).Select(p => p.User.FullName).FirstOrDefault() ?? string.Empty;
+                displayName = participants.Where(p => p.UserId != userId).Select(p => p.User?.FullName ?? string.Empty).FirstOrDefault() ?? string.Empty;
             }
 
             return new ViewConversationDTO

@@ -1,5 +1,12 @@
 name: Build, publish and deploy to MonsterASP.NET
-on: [push]
+
+on:
+  push:
+    paths:
+      - "RegMan.Backend.API/**"
+      - "RegMan.Backend.BusinessLayer/**"
+      - "RegMan.Backend.DAL/**"
+      - ".github/workflows/publish.yml"
 
 jobs:
   build_and_deploy:
@@ -16,8 +23,16 @@ jobs:
         with:
           dotnet-version: 8.0
 
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/*.fsproj', '**/*.props', '**/*.targets', '**/NuGet.Config') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
       - name: Install dependencies
-        run: cd RegMan.Backend.API && dotnet restore
+        run: dotnet restore RegMan.Backend.API/RegMan.Backend.API.csproj
 
       - name: Install EF Core tools
         run: dotnet tool install --global dotnet-ef --version 8.*
@@ -47,7 +62,7 @@ jobs:
         shell: pwsh
 
       - name: Test with .NET
-        run: cd RegMan.Backend.API && dotnet test
+        run: cd RegMan.Backend.API && dotnet test --configuration Release --no-build
 
       - name: Deploy to MonsterASP.NET via WebDeploy
         uses: rasmusbuchholdt/simply-web-deploy@2.1.0

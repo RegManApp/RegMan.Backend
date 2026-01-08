@@ -155,12 +155,15 @@ internal class EnrollmentService : IEnrollmentService
         }
 
         // Check if already enrolled in another section of the same course
-        var existingEnrollmentInCourse = await unitOfWork.Enrollments
-            .GetAllAsQueryable()
-            .Include(e => e.Section)
-            .AnyAsync(e => e.StudentId == student.StudentId &&
-                          e.Section.CourseId == section.CourseId &&
-                          (e.Status == Status.Enrolled || e.Status == Status.Pending));
+        var db = unitOfWork.Context;
+        var existingEnrollmentInCourse = await (
+            from e in unitOfWork.Enrollments.GetAllAsQueryable().AsNoTracking()
+            join s in db.Set<Section>().AsNoTracking() on e.SectionId equals s.SectionId
+            where e.StudentId == student.StudentId
+                  && s.CourseId == section.CourseId
+                  && (e.Status == Status.Enrolled || e.Status == Status.Pending)
+            select e.EnrollmentId)
+            .AnyAsync();
 
         if (existingEnrollmentInCourse)
             throw new ConflictException($"Student is already enrolled in another section of {section.Course?.CourseName ?? "this course"}");
@@ -218,6 +221,8 @@ internal class EnrollmentService : IEnrollmentService
 
     private async Task ValidateCartOrThrowAsync(StudentProfile student, ICollection<CartItem> cartItems)
     {
+        var db = unitOfWork.Context;
+
         // Basic existence checks
         foreach (var item in cartItems)
         {
@@ -250,13 +255,14 @@ internal class EnrollmentService : IEnrollmentService
             if (alreadyEnrolledInSection)
                 throw new ConflictException("Student already enrolled in this section");
 
-            var alreadyEnrolledInCourse = await unitOfWork.Enrollments
-                .GetAllAsQueryable()
-                .AsNoTracking()
-                .Include(e => e.Section)
-                .AnyAsync(e => e.StudentId == student.StudentId
-                              && e.Section.CourseId == section.CourseId
-                              && (e.Status == Status.Enrolled || e.Status == Status.Pending));
+            var alreadyEnrolledInCourse = await (
+                from e in unitOfWork.Enrollments.GetAllAsQueryable().AsNoTracking()
+                join s in db.Set<Section>().AsNoTracking() on e.SectionId equals s.SectionId
+                where e.StudentId == student.StudentId
+                      && (e.Status == Status.Enrolled || e.Status == Status.Pending)
+                      && s.CourseId == section.CourseId
+                select e.EnrollmentId)
+                .AnyAsync();
 
             if (alreadyEnrolledInCourse)
                 throw new ConflictException($"Student is already enrolled in another section of {section.Course?.CourseName ?? "this course"}");
@@ -335,38 +341,63 @@ internal class EnrollmentService : IEnrollmentService
         if (student == null)
             return Array.Empty<ViewEnrollmentDTO>();
 
-        var enrollments = await unitOfWork.Enrollments
-            .GetAllAsQueryable()
-            .AsNoTracking()
-            .Include(e => e.Section)
-                .ThenInclude(s => s.Course)
-            .Include(e => e.Section)
-                .ThenInclude(s => s.Instructor)
-                    .ThenInclude(i => i.User)
-            .Where(e => e.StudentId == student.StudentId)
+        var db = unitOfWork.Context;
+
+        var rows = await (
+            from e in unitOfWork.Enrollments.GetAllAsQueryable().AsNoTracking()
+            join s in db.Set<Section>().AsNoTracking() on e.SectionId equals s.SectionId
+            join c in db.Set<Course>().AsNoTracking() on s.CourseId equals c.CourseId
+            where e.StudentId == student.StudentId
+            select new { Enrollment = e, Section = s, Course = c })
             .ToListAsync();
 
-        if (enrollments.Count == 0)
+        if (rows.Count == 0)
             return Array.Empty<ViewEnrollmentDTO>();
 
-        return enrollments.Select(e => new ViewEnrollmentDTO
+        var instructorIds = rows
+            .Select(r => r.Section.InstructorId)
+            .Where(id => id.HasValue)
+            .Select(id => id.GetValueOrDefault())
+            .Distinct()
+            .ToList();
+
+        Dictionary<int, string> instructorNameById = new();
+        if (instructorIds.Count > 0)
         {
-            EnrollmentId = e.EnrollmentId,
-            SectionId = e.SectionId,
-            StudentId = e.StudentId,
-            EnrolledAt = e.EnrolledAt,
-            Grade = e.Grade,
-            Status = (int)e.Status,
-            CourseId = e.Section?.Course?.CourseId ?? 0,
-            CourseName = e.Section?.Course?.CourseName,
-            CourseCode = e.Section?.Course?.CourseCode,
-            CreditHours = e.Section?.Course?.CreditHours ?? 0,
-            SectionName = e.Section?.SectionName,
-            Semester = e.Section?.Semester,
-            InstructorName = e.Section?.Instructor?.User?.FullName,
-            DeclineReason = e.DeclineReason,
-            ApprovedBy = e.ApprovedBy,
-            ApprovedAt = e.ApprovedAt
+            instructorNameById = await db.Set<InstructorProfile>()
+                .AsNoTracking()
+                .Where(ip => instructorIds.Contains(ip.InstructorId))
+                .Select(ip => new { ip.InstructorId, ip.User.FullName })
+                .ToDictionaryAsync(x => x.InstructorId, x => x.FullName);
+        }
+
+        return rows.Select(r =>
+        {
+            string? instructorName = null;
+            if (r.Section.InstructorId is int instructorId && instructorNameById.TryGetValue(instructorId, out var name))
+            {
+                instructorName = name;
+            }
+
+            return new ViewEnrollmentDTO
+            {
+                EnrollmentId = r.Enrollment.EnrollmentId,
+                SectionId = r.Enrollment.SectionId,
+                StudentId = r.Enrollment.StudentId,
+                EnrolledAt = r.Enrollment.EnrolledAt,
+                Grade = r.Enrollment.Grade,
+                Status = (int)r.Enrollment.Status,
+                CourseId = r.Course.CourseId,
+                CourseName = r.Course.CourseName,
+                CourseCode = r.Course.CourseCode,
+                CreditHours = r.Course.CreditHours,
+                SectionName = r.Section.SectionName,
+                Semester = r.Section.Semester,
+                InstructorName = instructorName,
+                DeclineReason = r.Enrollment.DeclineReason,
+                ApprovedBy = r.Enrollment.ApprovedBy,
+                ApprovedAt = r.Enrollment.ApprovedAt
+            };
         }).ToList();
     }
 }

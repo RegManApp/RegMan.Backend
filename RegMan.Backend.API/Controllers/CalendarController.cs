@@ -134,7 +134,12 @@ namespace RegMan.Backend.API.Controllers
             try
             {
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                var userRole = User.FindFirstValue(ClaimTypes.Role);
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized", StatusCodes.Status401Unauthorized));
+                }
+
+                var userRole = User.FindFirstValue(ClaimTypes.Role) ?? string.Empty;
 
                 var events = new List<object>();
                 // Support both parameter naming conventions
@@ -209,39 +214,51 @@ namespace RegMan.Backend.API.Controllers
                         return Ok(ApiResponse<object>.SuccessResponse(payload));
                     }
 
-                    // Get student's office hour bookings
+                    var studentId = student.StudentId;
+
+                    // Get student's office hour bookings (projection avoids nullable Include/ThenInclude warnings)
                     var bookings = await _context.OfficeHourBookings
-                        .Include(b => b.OfficeHour)
-                            .ThenInclude(oh => oh.Instructor)
-                                .ThenInclude(i => i.User)
-                        .Include(b => b.OfficeHour)
-                            .ThenInclude(oh => oh.Room)
-                        .Where(b => b.StudentId == student.StudentId &&
+                        .Where(b => b.StudentId == studentId &&
                                    b.OfficeHour.Date >= start &&
                                    b.OfficeHour.Date <= end &&
-                                   (b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed))
+                                   (b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed) &&
+                                   b.OfficeHour.Instructor != null)
+                        .Select(b => new
+                        {
+                            b.BookingId,
+                            b.Status,
+                            b.Purpose,
+                            Notes = b.BookerNotes,
+                            OfficeHourDate = b.OfficeHour.Date,
+                            b.OfficeHour.StartTime,
+                            b.OfficeHour.EndTime,
+                            InstructorName = b.OfficeHour.Instructor != null
+                                ? b.OfficeHour.Instructor.User.FullName
+                                : string.Empty,
+                            Room = b.OfficeHour.Room != null
+                                ? new { b.OfficeHour.Room.RoomNumber, b.OfficeHour.Room.Building }
+                                : null
+                        })
                         .ToListAsync();
 
                     foreach (var booking in bookings)
                     {
-                        if (booking.OfficeHour?.Instructor?.User == null) continue;
-
                         events.Add(new
                         {
                             id = $"booking-{booking.BookingId}",
-                            title = $"Office Hour with {booking.OfficeHour.Instructor.User.FullName}",
-                            start = booking.OfficeHour.Date.Date.Add(booking.OfficeHour.StartTime),
-                            end = booking.OfficeHour.Date.Date.Add(booking.OfficeHour.EndTime),
+                            title = $"Office Hour with {booking.InstructorName}",
+                            start = booking.OfficeHourDate.Date.Add(booking.StartTime),
+                            end = booking.OfficeHourDate.Date.Add(booking.EndTime),
                             type = "office-hour-booking",
                             status = booking.Status.ToString(),
                             color = booking.Status == BookingStatus.Confirmed ? "#22c55e" : "#f59e0b",
                             extendedProps = new
                             {
                                 bookingId = booking.BookingId,
-                                instructorName = booking.OfficeHour.Instructor.User.FullName,
-                                room = booking.OfficeHour.Room != null ? $"{booking.OfficeHour.Room.RoomNumber} ({booking.OfficeHour.Room.Building})" : "TBD",
+                                instructorName = booking.InstructorName,
+                                room = booking.Room != null ? $"{booking.Room.RoomNumber} ({booking.Room.Building})" : "TBD",
                                 purpose = booking.Purpose,
-                                notes = booking.BookerNotes
+                                notes = booking.Notes
                             }
                         });
                     }
@@ -307,28 +324,47 @@ namespace RegMan.Backend.API.Controllers
                         return Ok(ApiResponse<object>.SuccessResponse(payload));
                     }
 
-                    // Get instructor's office hours
+                    var instructorId = instructor.InstructorId;
+
+                    // Get instructor's office hours (projection avoids nullable Include/ThenInclude warnings)
                     var officeHours = await _context.OfficeHours
-                        .Include(oh => oh.Room)
-                        .Include(oh => oh.Bookings)
-                            .ThenInclude(b => b.Student)
-                                .ThenInclude(s => s.User)
-                        .Where(oh => oh.InstructorId == instructor.InstructorId &&
-                                    oh.Date >= start &&
-                                    oh.Date <= end &&
-                                    oh.Status != OfficeHourStatus.Cancelled)
+                        .Where(oh => oh.InstructorId == instructorId &&
+                                     oh.Date >= start &&
+                                     oh.Date <= end &&
+                                     oh.Status != OfficeHourStatus.Cancelled)
+                        .Select(oh => new
+                        {
+                            oh.OfficeHourId,
+                            oh.Date,
+                            oh.StartTime,
+                            oh.EndTime,
+                            oh.Status,
+                            oh.Notes,
+                            Room = oh.Room != null
+                                ? new { oh.Room.RoomNumber, oh.Room.Building }
+                                : null,
+                            ActiveBooking = oh.Bookings
+                                .Where(b => b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed)
+                                .Select(b => new
+                                {
+                                    b.BookingId,
+                                    b.Purpose,
+                                    b.Status,
+                                    StudentName = b.Student != null ? b.Student.User.FullName : null
+                                })
+                                .FirstOrDefault()
+                        })
                         .ToListAsync();
 
                     foreach (var oh in officeHours)
                     {
-                        var activeBooking = oh.Bookings?.FirstOrDefault(b =>
-                            b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed);
+                        var studentName = oh.ActiveBooking?.StudentName;
 
                         events.Add(new
                         {
                             id = $"office-hour-{oh.OfficeHourId}",
-                            title = activeBooking?.Student?.User != null
-                                ? $"Office Hour: {activeBooking.Student.User.FullName}"
+                            title = !string.IsNullOrWhiteSpace(studentName)
+                                ? $"Office Hour: {studentName}"
                                 : "Office Hour (Available)",
                             start = oh.Date.Date.Add(oh.StartTime),
                             end = oh.Date.Date.Add(oh.EndTime),
@@ -340,12 +376,12 @@ namespace RegMan.Backend.API.Controllers
                                 officeHourId = oh.OfficeHourId,
                                 room = oh.Room != null ? $"{oh.Room.RoomNumber} ({oh.Room.Building})" : "TBD",
                                 notes = oh.Notes,
-                                booking = activeBooking?.Student?.User != null ? new
+                                booking = !string.IsNullOrWhiteSpace(studentName) && oh.ActiveBooking != null ? new
                                 {
-                                    bookingId = activeBooking.BookingId,
-                                    studentName = activeBooking.Student.User.FullName,
-                                    purpose = activeBooking.Purpose,
-                                    status = activeBooking.Status.ToString()
+                                    bookingId = oh.ActiveBooking.BookingId,
+                                    studentName,
+                                    purpose = oh.ActiveBooking.Purpose,
+                                    status = oh.ActiveBooking.Status.ToString()
                                 } : null
                             }
                         });
@@ -357,7 +393,7 @@ namespace RegMan.Backend.API.Controllers
                             .ThenInclude(s => s.Course)
                         .Include(ss => ss.TimeSlot)
                         .Include(ss => ss.Room)
-                        .Where(ss => ss.InstructorId == instructor.InstructorId)
+                        .Where(ss => ss.InstructorId == instructorId)
                         .ToListAsync();
 
                     // Generate class events for the date range

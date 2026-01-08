@@ -20,6 +20,7 @@ namespace RegMan.Backend.BusinessLayer.Services
         private readonly IChatRealtimePublisher chatRealtimePublisher;
         private readonly IGoogleCalendarIntegrationService googleCalendarIntegrationService;
         private readonly ICalendarReminderEngine calendarReminderEngine;
+        private readonly IAuditLogService auditLogService;
         private readonly ILogger<OfficeHoursService> logger;
         private readonly IBaseRepository<OfficeHour> officeHoursRepository;
         private readonly IBaseRepository<InstructorProfile> instructorsRepository;
@@ -30,6 +31,7 @@ namespace RegMan.Backend.BusinessLayer.Services
             IChatRealtimePublisher chatRealtimePublisher,
             IGoogleCalendarIntegrationService googleCalendarIntegrationService,
             ICalendarReminderEngine calendarReminderEngine,
+            IAuditLogService auditLogService,
             ILogger<OfficeHoursService> logger)
         {
             this.unitOfWork = unitOfWork;
@@ -38,9 +40,37 @@ namespace RegMan.Backend.BusinessLayer.Services
             this.chatRealtimePublisher = chatRealtimePublisher;
             this.googleCalendarIntegrationService = googleCalendarIntegrationService;
             this.calendarReminderEngine = calendarReminderEngine;
+            this.auditLogService = auditLogService;
             this.logger = logger;
             this.officeHoursRepository = unitOfWork.OfficeHours;
             this.instructorsRepository = unitOfWork.InstructorProfiles;
+        }
+
+        private async Task<string> GetUserEmailOrFallbackAsync(string userId)
+        {
+            var email = await Db.Set<BaseUser>()
+                .AsNoTracking()
+                .Where(u => u.Id == userId)
+                .Select(u => u.Email)
+                .FirstOrDefaultAsync();
+
+            return string.IsNullOrWhiteSpace(email) ? "unknown@user.com" : email;
+        }
+
+        private async Task TryWriteAuditAsync(string actorUserId, string? actorEmail, string action, string entityName, string entityId)
+        {
+            try
+            {
+                var email = string.IsNullOrWhiteSpace(actorEmail)
+                    ? await GetUserEmailOrFallbackAsync(actorUserId)
+                    : actorEmail;
+
+                await auditLogService.LogAsync(actorUserId, email, action, entityName, entityId);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Audit logging failed. ActorUserId={ActorUserId} Action={Action} Entity={EntityName} EntityId={EntityId}", actorUserId, action, entityName, entityId);
+            }
         }
 
         private static string BuildBookingSystemMessage(string titleLine, OfficeHour officeHour)
@@ -59,14 +89,25 @@ namespace RegMan.Backend.BusinessLayer.Services
         //Used by admin to see office hours of any instructor, based on their instructor ID
         public async Task<List<ViewOfficeHoursDTO>> GetOfficeHoursByInstructorIdAsync(int instructorId)
         {
-            List<ViewOfficeHoursDTO>? officeHours = await officeHoursRepository
-                .GetFilteredAndProjected(
-                filter: oh => oh.InstructorId == instructorId,
-                projection: oh => new ViewOfficeHoursDTO
+            var query = Db.Set<OfficeHour>()
+                .AsNoTracking()
+                .Where(oh => oh.InstructorId == instructorId);
+
+            List<ViewOfficeHoursDTO> officeHours = await (
+                from oh in query
+                from inst in Db.Set<InstructorProfile>()
+                    .AsNoTracking()
+                    .Where(i => oh.InstructorId != null && i.InstructorId == oh.InstructorId.Value)
+                    .DefaultIfEmpty()
+                from instUser in Db.Set<BaseUser>()
+                    .AsNoTracking()
+                    .Where(u => inst != null && u.Id == inst.UserId)
+                    .DefaultIfEmpty()
+                select new ViewOfficeHoursDTO
                 {
                     OfficeHoursId = oh.OfficeHourId,
                     RoomId = oh.RoomId,
-                    InstructorId = oh.InstructorId!.Value,
+                    InstructorId = oh.InstructorId ?? instructorId,
                     Date = oh.Date,
                     StartTime = oh.StartTime.ToString(@"hh\:mm"),
                     EndTime = oh.EndTime.ToString(@"hh\:mm"),
@@ -74,9 +115,8 @@ namespace RegMan.Backend.BusinessLayer.Services
                     Notes = oh.Notes,
                     IsRecurring = oh.IsRecurring,
                     Room = oh.Room != null ? $"{oh.Room.Building} - {oh.Room.RoomNumber}" : null,
-                    InstructorName = oh.Instructor.User.FullName
-                }
-                )
+                    InstructorName = instUser != null ? (instUser.FullName ?? string.Empty) : string.Empty
+                })
                 .ToListAsync();
             if (officeHours == null || officeHours.Count == 0)
             {
@@ -88,11 +128,7 @@ namespace RegMan.Backend.BusinessLayer.Services
         public async Task<List<AdminOfficeHourListItemDTO>> GetAllOfficeHoursAsync(int? instructorId, DateTime? fromDate, DateTime? toDate, string? status)
         {
             var query = Db.Set<OfficeHour>()
-                .Include(oh => oh.Instructor)
-                    .ThenInclude(i => i.User)
-                .Include(oh => oh.Room)
-                .Include(oh => oh.Bookings)
-                    .ThenInclude(b => b.BookerUser)
+                .AsNoTracking()
                 .AsQueryable();
 
             if (instructorId.HasValue)
@@ -105,10 +141,18 @@ namespace RegMan.Backend.BusinessLayer.Services
             if (!string.IsNullOrEmpty(status) && Enum.TryParse<OfficeHourStatus>(status, true, out var officeHourStatus))
                 query = query.Where(oh => oh.Status == officeHourStatus);
 
-            return await query
-                .OrderBy(oh => oh.Date)
-                .ThenBy(oh => oh.StartTime)
-                .Select(oh => new AdminOfficeHourListItemDTO
+            return await (
+                from oh in query
+                from inst in Db.Set<InstructorProfile>()
+                    .AsNoTracking()
+                    .Where(i => oh.InstructorId != null && i.InstructorId == oh.InstructorId.Value)
+                    .DefaultIfEmpty()
+                from instUser in Db.Set<BaseUser>()
+                    .AsNoTracking()
+                    .Where(u => inst != null && u.Id == inst.UserId)
+                    .DefaultIfEmpty()
+                orderby oh.Date, oh.StartTime
+                select new AdminOfficeHourListItemDTO
                 {
                     OfficeHourId = oh.OfficeHourId,
                     Date = oh.Date,
@@ -119,10 +163,10 @@ namespace RegMan.Backend.BusinessLayer.Services
                     Room = oh.Room != null ? new RoomInfoDTO { RoomId = oh.Room.RoomId, RoomNumber = oh.Room.RoomNumber, Building = oh.Room.Building } : null,
                     Instructor = new AdminInstructorInfoDTO
                     {
-                        InstructorId = oh.Instructor.InstructorId,
-                        FullName = oh.Instructor.User.FullName,
-                        Title = oh.Instructor.Title,
-                        Degree = oh.Instructor.Degree
+                        InstructorId = inst != null ? inst.InstructorId : (oh.InstructorId ?? 0),
+                        FullName = instUser != null ? (instUser.FullName ?? string.Empty) : string.Empty,
+                        Title = inst != null ? inst.Title : null,
+                        Degree = inst != null ? inst.Degree : null
                     },
                     Bookings = oh.Bookings.Select(b => new AdminBookingListItemDTO
                     {
@@ -239,9 +283,9 @@ namespace RegMan.Backend.BusinessLayer.Services
                         Booker = new UserInfoDTO
                         {
                             UserId = b.BookerUserId,
-                            FullName = b.BookerUser.FullName,
-                            Email = b.BookerUser.Email,
-                            Role = b.BookerUser.Role
+                            FullName = b.BookerUser.FullName ?? string.Empty,
+                            Email = b.BookerUser.Email ?? string.Empty,
+                            Role = b.BookerUser.Role ?? string.Empty
                         }
                     }).ToList()
                 })
@@ -310,6 +354,14 @@ namespace RegMan.Backend.BusinessLayer.Services
 
             Db.Set<OfficeHour>().Add(officeHour);
             await unitOfWork.SaveChangesAsync();
+
+            await TryWriteAuditAsync(
+                actorUserId: instructorUserId,
+                actorEmail: owner.Email,
+                action: "CREATE",
+                entityName: "OfficeHour",
+                entityId: officeHour.OfficeHourId.ToString());
+
             return officeHour.OfficeHourId;
         }
 
@@ -374,6 +426,13 @@ namespace RegMan.Backend.BusinessLayer.Services
                 Db.Set<OfficeHour>().Add(officeHour);
                 await unitOfWork.SaveChangesAsync();
                 createdIds.Add(officeHour.OfficeHourId);
+
+                await TryWriteAuditAsync(
+                    actorUserId: instructorUserId,
+                    actorEmail: owner.Email,
+                    action: "CREATE",
+                    entityName: "OfficeHour",
+                    entityId: officeHour.OfficeHourId.ToString());
             }
 
             return (createdIds, errors);
@@ -418,6 +477,13 @@ namespace RegMan.Backend.BusinessLayer.Services
 
             officeHour.UpdatedAt = DateTime.UtcNow;
             await unitOfWork.SaveChangesAsync();
+
+            await TryWriteAuditAsync(
+                actorUserId: instructorUserId,
+                actorEmail: owner.Email,
+                action: "UPDATE",
+                entityName: "OfficeHour",
+                entityId: officeHourId.ToString());
         }
 
         public async Task DeleteOfficeHourAsync(string instructorUserId, int officeHourId)
@@ -445,6 +511,13 @@ namespace RegMan.Backend.BusinessLayer.Services
                 booking.CancellationReason = "Office hour was cancelled by provider";
                 booking.CancelledBy = "Provider";
                 booking.CancelledAt = DateTime.UtcNow;
+
+                await TryWriteAuditAsync(
+                    actorUserId: instructorUserId,
+                    actorEmail: owner.Email,
+                    action: "CANCEL_BY_PROVIDER",
+                    entityName: "OfficeHourBooking",
+                    entityId: booking.BookingId.ToString());
 
                 try
                 {
@@ -475,6 +548,13 @@ namespace RegMan.Backend.BusinessLayer.Services
 
             Db.Set<OfficeHour>().Remove(officeHour);
             await unitOfWork.SaveChangesAsync();
+
+            await TryWriteAuditAsync(
+                actorUserId: instructorUserId,
+                actorEmail: owner.Email,
+                action: "DELETE",
+                entityName: "OfficeHour",
+                entityId: officeHourId.ToString());
         }
 
         public async Task ConfirmBookingAsync(string instructorUserId, int bookingId)
@@ -508,6 +588,13 @@ namespace RegMan.Backend.BusinessLayer.Services
             booking.OfficeHour.Status = OfficeHourStatus.Booked;
 
             await unitOfWork.SaveChangesAsync();
+
+            await TryWriteAuditAsync(
+                actorUserId: instructorUserId,
+                actorEmail: owner.Email,
+                action: "CONFIRM",
+                entityName: "OfficeHourBooking",
+                entityId: bookingId.ToString());
 
             await notificationService.CreateOfficeHourConfirmedNotificationAsync(
                 studentUserId: booking.BookerUserId,
@@ -571,6 +658,13 @@ namespace RegMan.Backend.BusinessLayer.Services
 
             booking.ProviderNotes = notes;
             await unitOfWork.SaveChangesAsync();
+
+            await TryWriteAuditAsync(
+                actorUserId: instructorUserId,
+                actorEmail: owner.Email,
+                action: "UPDATE_NOTES",
+                entityName: "OfficeHourBooking",
+                entityId: bookingId.ToString());
         }
 
         public async Task CompleteBookingAsync(string instructorUserId, int bookingId)
@@ -600,6 +694,13 @@ namespace RegMan.Backend.BusinessLayer.Services
             booking.OfficeHour.Status = OfficeHourStatus.Available;
 
             await unitOfWork.SaveChangesAsync();
+
+            await TryWriteAuditAsync(
+                actorUserId: instructorUserId,
+                actorEmail: owner.Email,
+                action: "COMPLETE",
+                entityName: "OfficeHourBooking",
+                entityId: bookingId.ToString());
         }
 
         public async Task MarkNoShowAsync(string instructorUserId, int bookingId)
@@ -625,14 +726,19 @@ namespace RegMan.Backend.BusinessLayer.Services
             booking.OfficeHour.Status = OfficeHourStatus.Available;
 
             await unitOfWork.SaveChangesAsync();
+
+            await TryWriteAuditAsync(
+                actorUserId: instructorUserId,
+                actorEmail: owner.Email,
+                action: "NO_SHOW",
+                entityName: "OfficeHourBooking",
+                entityId: bookingId.ToString());
         }
 
         public async Task<List<StudentAvailableOfficeHourDTO>> GetAvailableOfficeHoursAsync(int? instructorId, DateTime? fromDate, DateTime? toDate)
         {
             var query = Db.Set<OfficeHour>()
-                .Include(oh => oh.Instructor)
-                    .ThenInclude(i => i.User)
-                .Include(oh => oh.Room)
+                .AsNoTracking()
                 .Where(oh => oh.Status == OfficeHourStatus.Available && oh.Date >= DateTime.UtcNow.Date);
 
             if (instructorId.HasValue)
@@ -642,10 +748,18 @@ namespace RegMan.Backend.BusinessLayer.Services
             if (toDate.HasValue)
                 query = query.Where(oh => oh.Date <= toDate.Value.Date);
 
-            return await query
-                .OrderBy(oh => oh.Date)
-                .ThenBy(oh => oh.StartTime)
-                .Select(oh => new StudentAvailableOfficeHourDTO
+            return await (
+                from oh in query
+                from inst in Db.Set<InstructorProfile>()
+                    .AsNoTracking()
+                    .Where(i => oh.InstructorId != null && i.InstructorId == oh.InstructorId.Value)
+                    .DefaultIfEmpty()
+                from instUser in Db.Set<BaseUser>()
+                    .AsNoTracking()
+                    .Where(u => inst != null && u.Id == inst.UserId)
+                    .DefaultIfEmpty()
+                orderby oh.Date, oh.StartTime
+                select new StudentAvailableOfficeHourDTO
                 {
                     OfficeHourId = oh.OfficeHourId,
                     Date = oh.Date,
@@ -655,11 +769,11 @@ namespace RegMan.Backend.BusinessLayer.Services
                     Room = oh.Room != null ? new RoomInfoDTO { RoomId = oh.Room.RoomId, RoomNumber = oh.Room.RoomNumber, Building = oh.Room.Building } : null,
                     Instructor = new InstructorInfoDTO
                     {
-                        InstructorId = oh.Instructor.InstructorId,
-                        FullName = oh.Instructor.User.FullName,
-                        Title = oh.Instructor.Title,
-                        Degree = oh.Instructor.Degree,
-                        Department = oh.Instructor.Department
+                        InstructorId = inst != null ? inst.InstructorId : (oh.InstructorId ?? 0),
+                        FullName = instUser != null ? (instUser.FullName ?? string.Empty) : string.Empty,
+                        Title = inst != null ? inst.Title : null,
+                        Degree = inst != null ? inst.Degree : null,
+                        Department = inst != null ? inst.Department : null
                     }
                 })
                 .ToListAsync();
@@ -835,9 +949,6 @@ namespace RegMan.Backend.BusinessLayer.Services
             }
 
             var officeHour = await Db.Set<OfficeHour>()
-                .Include(oh => oh.OwnerUser)
-                .Include(oh => oh.Instructor)
-                    .ThenInclude(i => i.User)
                 .Include(oh => oh.Room)
                 .FirstOrDefaultAsync(oh => oh.OfficeHourId == officeHourId);
 
@@ -890,6 +1001,13 @@ namespace RegMan.Backend.BusinessLayer.Services
                 : OfficeHourStatus.Available;
             await unitOfWork.SaveChangesAsync();
 
+            await TryWriteAuditAsync(
+                actorUserId: bookerUserId,
+                actorEmail: booker.Email,
+                action: "CREATE",
+                entityName: "OfficeHourBooking",
+                entityId: booking.BookingId.ToString());
+
             await notificationService.CreateOfficeHourBookedNotificationAsync(
                 bookingId: booking.BookingId,
                 instructorUserId: officeHour.OwnerUserId,
@@ -931,13 +1049,7 @@ namespace RegMan.Backend.BusinessLayer.Services
                 throw new NotFoundException("User not found");
 
             var query = Db.Set<OfficeHourBooking>()
-                .Include(b => b.OfficeHour)
-                    .ThenInclude(oh => oh.OwnerUser)
-                .Include(b => b.OfficeHour)
-                    .ThenInclude(oh => oh.Instructor)
-                        .ThenInclude(i => i.User)
-                .Include(b => b.OfficeHour)
-                    .ThenInclude(oh => oh.Room)
+                .AsNoTracking()
                 .Where(b => b.BookerUserId == bookerUserId);
 
             if (!string.IsNullOrEmpty(status) && Enum.TryParse<BookingStatus>(status, true, out var bookingStatus))
@@ -980,7 +1092,9 @@ namespace RegMan.Backend.BusinessLayer.Services
                         ? new InstructorInfoDTO
                         {
                             InstructorId = b.OfficeHour.Instructor.InstructorId,
-                            FullName = b.OfficeHour.Instructor.User.FullName,
+                            FullName = b.OfficeHour.Instructor.User != null
+                                        ? b.OfficeHour.Instructor.User.FullName
+                                        : string.Empty,
                             Title = b.OfficeHour.Instructor.Title,
                             Degree = b.OfficeHour.Instructor.Degree,
                             Department = b.OfficeHour.Instructor.Department
@@ -1029,6 +1143,16 @@ namespace RegMan.Backend.BusinessLayer.Services
                 : OfficeHourStatus.Available;
 
             await unitOfWork.SaveChangesAsync();
+
+            var cancelAction = string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase)
+                ? "CANCEL_BY_ADMIN"
+                : (isProvider ? "CANCEL_BY_PROVIDER" : "CANCEL_BY_BOOKER");
+            await TryWriteAuditAsync(
+                actorUserId: userId,
+                actorEmail: null,
+                action: cancelAction,
+                entityName: "OfficeHourBooking",
+                entityId: bookingId.ToString());
 
             try
             {
@@ -1163,6 +1287,16 @@ namespace RegMan.Backend.BusinessLayer.Services
                 : OfficeHourStatus.Available;
 
             await unitOfWork.SaveChangesAsync();
+
+            var rescheduleAction = string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase)
+                ? "RESCHEDULE_BY_ADMIN"
+                : (booking.BookerUserId == userId ? "RESCHEDULE_BY_BOOKER" : "RESCHEDULE_BY_PROVIDER");
+            await TryWriteAuditAsync(
+                actorUserId: userId,
+                actorEmail: null,
+                action: rescheduleAction,
+                entityName: "OfficeHourBooking",
+                entityId: bookingId.ToString());
 
             // Chat: persisted system message and realtime publish.
             var conversation = await chatService.GetOrCreateDirectConversationAsync(booking.BookerUserId, newOfficeHour.OwnerUserId, pageNumber: 1, pageSize: 1);

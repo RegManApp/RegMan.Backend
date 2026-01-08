@@ -10,12 +10,12 @@ namespace RegMan.Backend.BusinessLayer.DTOs.StudentDTOs
     public class ChangePasswordDTO
     {
         [Required]
-        public string Email { get; set; }
+        public required string Email { get; set; }
         [Required]
-        public string NewPassword { get; set; }
+        public required string NewPassword { get; set; }
         [Required]
-        public string OldPassword { get; set; }
+        public required string OldPassword { get; set; }
         [Required]
-        public string ConfirmPassword { get; set; }
+        public required string ConfirmPassword { get; set; }
     }
 }
