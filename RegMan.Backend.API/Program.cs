@@ -47,24 +47,67 @@ namespace RegMan.Backend.API
             // ==================
             // CORS Policy
             // ==================
-            var allowedOrigins = new[]
+            static string? NormalizeOrigin(string? raw)
+            {
+                if (string.IsNullOrWhiteSpace(raw))
+                    return null;
+
+                raw = raw.Trim();
+
+                // Support either full URL (https://host/path) or origin (https://host)
+                if (Uri.TryCreate(raw, UriKind.Absolute, out var uri)
+                    && (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp))
+                {
+                    return uri.GetLeftPart(UriPartial.Authority);
+                }
+
+                // If it's already an origin-ish string, keep it as-is.
+                return raw.TrimEnd('/');
+            }
+
+            var configuredFrontendOrigin =
+                NormalizeOrigin(Environment.GetEnvironmentVariable("FRONTEND_BASE_URL"))
+                ?? NormalizeOrigin(builder.Configuration["Frontend:BaseUrl"]);
+
+            var allowedOrigins = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(configuredFrontendOrigin))
+            {
+                allowedOrigins.Add(configuredFrontendOrigin);
+            }
+
+            // Known production origins (back-compat)
+            allowedOrigins.AddRange(new[]
             {
                 "https://regman.app",
                 "https://www.regman.app",
-                "https://regman.pages.dev",
+                "https://regman.pages.dev"
+            });
+
+            // Local dev origins
+            allowedOrigins.AddRange(new[]
+            {
                 "http://localhost:5173",
-                "https://localhost:5173/",
+                "https://localhost:5173",
                 "http://localhost:5174",
                 "https://localhost:5174",
                 "http://localhost:5236",
                 "http://localhost:3000",
                 "https://localhost:7025"
-            };
+            });
+
+            allowedOrigins = allowedOrigins
+                .Select(NormalizeOrigin)
+                .Where(o => !string.IsNullOrWhiteSpace(o))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList()!;
+
+            builder.Logging.AddFilter("Microsoft.AspNetCore.Cors", LogLevel.Information);
             builder.Services.AddCors(options =>
             {
                 options.AddPolicy("AllowRegman", policy =>
                 {
-                    policy.WithOrigins(allowedOrigins)
+                    policy.WithOrigins(allowedOrigins.ToArray())
                         .AllowAnyHeader()
                         .AllowAnyMethod()
                         .AllowCredentials();
