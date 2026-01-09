@@ -76,9 +76,10 @@ namespace RegMan.Backend.API.Controllers
         // =============================================
 
         /// <summary>
-        /// Get all office hours for the current instructor
+        /// Get all office hours for the current provider
         /// </summary>
         [HttpGet("my-office-hours")]
+        [HttpGet("my")]
         public async Task<IActionResult> GetMyOfficeHours([FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate)
         {
             if (!TryGetUserId(out var userId))

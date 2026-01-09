@@ -804,23 +804,16 @@ namespace RegMan.Backend.BusinessLayer.Services
         {
             var todayUtc = DateTime.UtcNow.Date;
 
-            var counts = await Db.Set<OfficeHour>()
-                .AsNoTracking()
-                .Where(oh => oh.Status == OfficeHourStatus.Available && oh.Date >= todayUtc)
-                .GroupBy(oh => oh.OwnerUserId)
-                .Select(g => new { OwnerUserId = g.Key, AvailableSlots = g.Count() })
-                .ToListAsync();
-
-            var countByUserId = counts.ToDictionary(c => c.OwnerUserId, c => c.AvailableSlots);
-
+            // NOTE: Avoid StringComparison overloads in EF queries (not translatable to SQL).
+            // Treat any non-student (including null/unknown role) as a provider.
             var providersQuery = Db.Set<BaseUser>()
                 .AsNoTracking()
-                .Where(u => !string.Equals(u.Role, "Student", StringComparison.OrdinalIgnoreCase));
+                .Where(u => u.Role == null || u.Role.ToUpper() != "STUDENT");
 
             if (!string.IsNullOrWhiteSpace(role))
             {
-                var normalizedRole = role.Trim();
-                providersQuery = providersQuery.Where(u => u.Role == normalizedRole);
+                var normalizedRoleUpper = role.Trim().ToUpper();
+                providersQuery = providersQuery.Where(u => u.Role != null && u.Role.ToUpper() == normalizedRoleUpper);
             }
 
             if (courseId.HasValue || sectionId.HasValue)
@@ -847,41 +840,34 @@ namespace RegMan.Backend.BusinessLayer.Services
                 providersQuery = providersQuery.Where(u => instructorUserIds.Contains(u.Id));
             }
 
-            var providers = await providersQuery
-                .Select(u => new { u.Id, u.FullName, u.Role })
-                .ToListAsync();
-
-            var providerIds = providers.Select(p => p.Id).ToList();
-            var instructors = await Db.Set<InstructorProfile>()
+            // LEFT JOIN office hours to providers so providers with zero office hours still return.
+            var availableOfficeHours = Db.Set<OfficeHour>()
                 .AsNoTracking()
-                .Where(i => providerIds.Contains(i.UserId))
-                .Select(i => new { i.UserId, i.Title, i.Degree, i.Department })
-                .ToListAsync();
+                .Where(oh => oh.Status == OfficeHourStatus.Available && oh.Date >= todayUtc);
 
-            var instructorByUserId = instructors.ToDictionary(i => i.UserId, i => i);
-
-            return providers
-                .Select(p =>
+            return await (
+                from u in providersQuery
+                join inst in Db.Set<InstructorProfile>()
+                        .AsNoTracking()
+                    on u.Id equals inst.UserId into instGroup
+                from inst in instGroup.DefaultIfEmpty()
+                join oh in availableOfficeHours
+                    on u.Id equals oh.OwnerUserId into ohGroup
+                orderby (u.FullName ?? string.Empty)
+                select new StudentProvidersWithOfficeHoursDTO
                 {
-                    instructorByUserId.TryGetValue(p.Id, out var inst);
-                    countByUserId.TryGetValue(p.Id, out var slots);
-
-                    return new StudentProvidersWithOfficeHoursDTO
+                    AvailableSlots = ohGroup.Count(),
+                    Provider = new ProviderInfoDTO
                     {
-                        AvailableSlots = slots,
-                        Provider = new ProviderInfoDTO
-                        {
-                            UserId = p.Id,
-                            FullName = p.FullName,
-                            Role = p.Role,
-                            Title = inst?.Title,
-                            Degree = inst?.Degree,
-                            Department = inst?.Department
-                        }
-                    };
+                        UserId = u.Id,
+                        FullName = u.FullName ?? string.Empty,
+                        Role = u.Role ?? string.Empty,
+                        Title = inst != null ? inst.Title : null,
+                        Degree = inst != null ? inst.Degree : null,
+                        Department = inst != null ? inst.Department : null
+                    }
                 })
-                .OrderBy(p => p.Provider.FullName)
-                .ToList();
+                .ToListAsync();
         }
 
         public async Task<List<StudentAvailableOfficeHourV2DTO>> GetAvailableOfficeHoursV2Async(string? providerUserId, DateTime? fromDate, DateTime? toDate)
