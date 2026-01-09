@@ -96,6 +96,10 @@ namespace RegMan.Backend.DAL.DataContext
                 .HasMaxLength(64);
 
             modelBuilder.Entity<GoogleCalendarOAuthStateNonce>()
+                .Property(s => s.BindingHash)
+                .HasMaxLength(64);
+
+            modelBuilder.Entity<GoogleCalendarOAuthStateNonce>()
                 .Property(s => s.ReturnUrl)
                 .HasMaxLength(2048);
 

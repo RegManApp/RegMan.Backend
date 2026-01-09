@@ -9,6 +9,9 @@ namespace RegMan.Backend.DAL.Entities.Integrations
         // SHA-256 hex of the raw state value sent to Google.
         public string StateHash { get; set; } = string.Empty;
 
+        // SHA-256 hex of the per-browser binding cookie value (prevents link sharing / code injection).
+        public string BindingHash { get; set; } = string.Empty;
+
         public string UserId { get; set; } = string.Empty;
         public BaseUser? User { get; set; }
 

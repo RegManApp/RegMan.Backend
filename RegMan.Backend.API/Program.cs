@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -68,6 +69,17 @@ namespace RegMan.Backend.API
                         .AllowAnyMethod()
                         .AllowCredentials();
                 });
+            });
+
+            // ==================
+            // Reverse proxy support (TLS termination)
+            // ==================
+            builder.Services.Configure<ForwardedHeadersOptions>(options =>
+            {
+                options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
+                // Many hosts (IIS shared hosting, CDNs) use dynamic proxy addresses.
+                options.KnownNetworks.Clear();
+                options.KnownProxies.Clear();
             });
 
 
@@ -337,6 +349,8 @@ namespace RegMan.Backend.API
             // ==================
             // Middleware Pipeline
             // ==================
+            app.UseForwardedHeaders();
+
             // if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();

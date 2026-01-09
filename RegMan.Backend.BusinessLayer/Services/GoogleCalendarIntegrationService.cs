@@ -122,10 +122,12 @@ namespace RegMan.Backend.BusinessLayer.Services
             }
         }
 
-        public string CreateAuthorizationUrl(string userId, string? returnUrl)
+        public string CreateAuthorizationUrl(string userId, string? returnUrl, string oauthFlowBinding)
         {
             if (!isConfigured)
                 throw new InvalidOperationException(configurationError ?? "Google OAuth is not configured.");
+            if (string.IsNullOrWhiteSpace(oauthFlowBinding))
+                throw new InvalidOperationException("OAuth flow binding is missing.");
 
             if (!Uri.TryCreate(redirectUri, UriKind.Absolute, out _))
             {
@@ -140,6 +142,8 @@ namespace RegMan.Backend.BusinessLayer.Services
             var nowUtc = DateTime.UtcNow;
             var expiresAtUtc = nowUtc.Add(OAuthStateTtl);
 
+            var bindingHash = ComputeStateHash(oauthFlowBinding);
+
             var state = string.Empty;
             var persisted = false;
             for (var attempt = 0; attempt < 3 && !persisted; attempt++)
@@ -150,6 +154,7 @@ namespace RegMan.Backend.BusinessLayer.Services
                 Db.Set<GoogleCalendarOAuthStateNonce>().Add(new GoogleCalendarOAuthStateNonce
                 {
                     StateHash = stateHash,
+                    BindingHash = bindingHash,
                     UserId = userId,
                     IssuedAtUtc = nowUtc,
                     ExpiresAtUtc = expiresAtUtc,
@@ -237,36 +242,37 @@ namespace RegMan.Backend.BusinessLayer.Services
             throw new NotSupportedException("Google OAuth state is stored server-side and cannot be unprotected client-side.");
         }
 
-        public async Task<string?> HandleOAuthCallbackAsync(string currentUserId, string code, string state, CancellationToken cancellationToken)
+        public async Task<string?> HandleOAuthCallbackAsync(string code, string state, string oauthFlowBinding, CancellationToken cancellationToken)
         {
             if (!isConfigured)
                 throw new InvalidOperationException("Google OAuth is not configured.");
-            if (string.IsNullOrWhiteSpace(currentUserId))
-                throw new UnauthorizedAccessException("User is not authenticated.");
             if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(state))
                 throw new UnauthorizedAccessException("Missing code/state.");
+            if (string.IsNullOrWhiteSpace(oauthFlowBinding))
+                throw new UnauthorizedAccessException("OAuth flow binding is missing.");
 
             // Validate + consume state BEFORE exchanging code (one-time use).
-            var returnUrl = await ValidateAndConsumeStateAsync(currentUserId, state, cancellationToken);
+            var (userId, returnUrl) = await ValidateAndConsumeStateAsync(state, oauthFlowBinding, cancellationToken);
 
             var flow = CreateFlow();
 
             TokenResponse tokenResponse = await flow.ExchangeCodeForTokenAsync(
-                userId: currentUserId,
+                userId: userId,
                 code: code,
                 redirectUri: redirectUri,
                 taskCancellationToken: cancellationToken
             );
 
-            await UpsertTokenAsync(currentUserId, tokenResponse, cancellationToken);
+            await UpsertTokenAsync(userId, tokenResponse, cancellationToken);
 
             return returnUrl;
         }
 
-        private async Task<string?> ValidateAndConsumeStateAsync(string currentUserId, string state, CancellationToken cancellationToken)
+        private async Task<(string UserId, string? ReturnUrl)> ValidateAndConsumeStateAsync(string state, string oauthFlowBinding, CancellationToken cancellationToken)
         {
             var nowUtc = DateTime.UtcNow;
             var stateHash = ComputeStateHash(state);
+            var bindingHash = ComputeStateHash(oauthFlowBinding);
 
             var record = await Db.Set<GoogleCalendarOAuthStateNonce>()
                 .AsNoTracking()
@@ -277,25 +283,26 @@ namespace RegMan.Backend.BusinessLayer.Services
                     s.UserId,
                     s.IsUsed,
                     s.ExpiresAtUtc,
-                    s.ReturnUrl
+                    s.ReturnUrl,
+                    s.BindingHash
                 })
                 .SingleOrDefaultAsync(cancellationToken);
 
             if (record == null)
                 throw new UnauthorizedAccessException("Invalid OAuth state.");
-            if (!string.Equals(record.UserId, currentUserId, StringComparison.Ordinal))
-                throw new UnauthorizedAccessException("OAuth state does not belong to the current user.");
             if (record.IsUsed)
                 throw new UnauthorizedAccessException("OAuth state has already been used.");
             if (record.ExpiresAtUtc <= nowUtc)
                 throw new UnauthorizedAccessException("OAuth state has expired.");
+            if (!string.Equals(record.BindingHash, bindingHash, StringComparison.Ordinal))
+                throw new UnauthorizedAccessException("OAuth flow binding mismatch.");
 
             // One-time use: flip IsUsed atomically. If this fails, treat as replay/invalid.
             var affected = await Db.Set<GoogleCalendarOAuthStateNonce>()
                 .Where(s => s.GoogleCalendarOAuthStateNonceId == record.GoogleCalendarOAuthStateNonceId
-                            && s.UserId == currentUserId
                             && !s.IsUsed
-                            && s.ExpiresAtUtc > nowUtc)
+                            && s.ExpiresAtUtc > nowUtc
+                            && s.BindingHash == bindingHash)
                 .ExecuteUpdateAsync(
                     setters => setters
                         .SetProperty(x => x.IsUsed, true)
@@ -305,7 +312,7 @@ namespace RegMan.Backend.BusinessLayer.Services
             if (affected != 1)
                 throw new UnauthorizedAccessException("OAuth state is invalid or has been replayed.");
 
-            return record.ReturnUrl;
+            return (record.UserId, record.ReturnUrl);
         }
 
         private static string GenerateStateToken()

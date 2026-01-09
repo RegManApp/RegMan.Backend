@@ -13,6 +13,30 @@ namespace RegMan.Backend.API.Controllers
     [Authorize]
     public class GoogleCalendarIntegrationController : ControllerBase
     {
+        private const string OAuthBindingCookieName = "RegMan.GoogleCalendar.OAuthBind";
+
+        private CookieOptions BuildOAuthBindingCookieOptions()
+        {
+            // Must be sent on Google -> callback cross-site navigation.
+            return new CookieOptions
+            {
+                HttpOnly = true,
+                SameSite = SameSiteMode.None,
+                Secure = true,
+                Path = "/api/integrations/google-calendar/callback",
+                MaxAge = TimeSpan.FromMinutes(10)
+            };
+        }
+
+        private static string GenerateOAuthBindingToken()
+        {
+            // 256-bit random token, base64url without padding.
+            var bytes = RandomNumberGenerator.GetBytes(32);
+            var b64 = Convert.ToBase64String(bytes);
+            return b64.TrimEnd('=')
+                .Replace('+', '-')
+                .Replace('/', '_');
+        }
         private readonly IGoogleCalendarIntegrationService googleCalendarIntegrationService;
         private readonly ILogger<GoogleCalendarIntegrationController> logger;
         private readonly IConfiguration configuration;
@@ -115,7 +139,10 @@ namespace RegMan.Backend.API.Controllers
 
             try
             {
-                var url = googleCalendarIntegrationService.CreateAuthorizationUrl(userId, safeReturnUrl);
+                var oauthBind = GenerateOAuthBindingToken();
+                Response.Cookies.Append(OAuthBindingCookieName, oauthBind, BuildOAuthBindingCookieOptions());
+
+                var url = googleCalendarIntegrationService.CreateAuthorizationUrl(userId, safeReturnUrl, oauthBind);
                 return Ok(ApiResponse<object>.SuccessResponse(new { url }));
             }
             catch (InvalidOperationException ex)
@@ -162,7 +189,10 @@ namespace RegMan.Backend.API.Controllers
 
             try
             {
-                var url = googleCalendarIntegrationService.CreateAuthorizationUrl(userId, safeReturnUrl);
+                var oauthBind = GenerateOAuthBindingToken();
+                Response.Cookies.Append(OAuthBindingCookieName, oauthBind, BuildOAuthBindingCookieOptions());
+
+                var url = googleCalendarIntegrationService.CreateAuthorizationUrl(userId, safeReturnUrl, oauthBind);
                 return Redirect(url);
             }
             catch (InvalidOperationException ex)
@@ -230,13 +260,6 @@ namespace RegMan.Backend.API.Controllers
             [FromQuery] string? error,
             CancellationToken cancellationToken)
         {
-            // SECURITY: OAuth callback must only complete for the same authenticated user
-            // who initiated the flow. We do not auto-login here.
-            if (User?.Identity?.IsAuthenticated != true)
-            {
-                return Forbid();
-            }
-
             if (!string.IsNullOrWhiteSpace(error))
             {
                 logger.LogWarning("GoogleCalendar OAuth callback returned error={Error}", error);
@@ -248,16 +271,19 @@ namespace RegMan.Backend.API.Controllers
                 return Forbid();
             }
 
-            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrWhiteSpace(currentUserId))
+            // SECURITY: do NOT rely on JWT here (Google redirect won't include it).
+            // Instead, require the per-browser binding cookie issued at /connect-url.
+            var oauthBind = Request.Cookies[OAuthBindingCookieName];
+            if (string.IsNullOrWhiteSpace(oauthBind))
             {
+                logger.LogWarning("GoogleCalendar OAuth callback missing binding cookie");
                 return Forbid();
             }
 
             string? returnUrl;
             try
             {
-                returnUrl = await googleCalendarIntegrationService.HandleOAuthCallbackAsync(currentUserId, code, state, cancellationToken);
+                returnUrl = await googleCalendarIntegrationService.HandleOAuthCallbackAsync(code, state, oauthBind, cancellationToken);
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -274,6 +300,9 @@ namespace RegMan.Backend.API.Controllers
             // IMPORTANT: returnUrl is a SPA route (React). Redirect to the configured frontend origin.
             try
             {
+                // Clear binding cookie after completion (best-effort)
+                Response.Cookies.Delete(OAuthBindingCookieName, BuildOAuthBindingCookieOptions());
+
                 var target = BuildFrontendRedirectUrl(returnUrl);
                 return Redirect(target);
             }
