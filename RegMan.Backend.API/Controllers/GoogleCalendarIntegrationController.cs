@@ -230,6 +230,13 @@ namespace RegMan.Backend.API.Controllers
             [FromQuery] string? error,
             CancellationToken cancellationToken)
         {
+            // SECURITY: OAuth callback must only complete for the same authenticated user
+            // who initiated the flow. We do not auto-login here.
+            if (User?.Identity?.IsAuthenticated != true)
+            {
+                return Forbid();
+            }
+
             if (!string.IsNullOrWhiteSpace(error))
             {
                 logger.LogWarning("GoogleCalendar OAuth callback returned error={Error}", error);
@@ -238,13 +245,25 @@ namespace RegMan.Backend.API.Controllers
 
             if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(state))
             {
-                return BadRequest(ApiResponse<string>.FailureResponse("Missing code/state", 400));
+                return Forbid();
+            }
+
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(currentUserId))
+            {
+                return Forbid();
             }
 
             string? returnUrl;
             try
             {
-                returnUrl = await googleCalendarIntegrationService.HandleOAuthCallbackAsync(code, state, cancellationToken);
+                returnUrl = await googleCalendarIntegrationService.HandleOAuthCallbackAsync(currentUserId, code, state, cancellationToken);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                // CSRF / replay / user mismatch / invalid state.
+                logger.LogWarning(ex, "GoogleCalendar OAuth callback forbidden");
+                return Forbid();
             }
             catch (Exception ex)
             {

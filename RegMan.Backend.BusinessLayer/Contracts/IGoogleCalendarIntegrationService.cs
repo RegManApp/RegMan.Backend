@@ -7,7 +7,7 @@ namespace RegMan.Backend.BusinessLayer.Contracts
     {
         string CreateAuthorizationUrl(string userId, string? returnUrl);
         GoogleCalendarOAuthState UnprotectState(string protectedState);
-        Task<string?> HandleOAuthCallbackAsync(string code, string protectedState, CancellationToken cancellationToken);
+        Task<string?> HandleOAuthCallbackAsync(string currentUserId, string code, string state, CancellationToken cancellationToken);
         Task<bool> IsConnectedAsync(string userId, CancellationToken cancellationToken);
         Task TryUpsertOfficeHourBookingEventAsync(OfficeHourBooking booking, CancellationToken cancellationToken);
         Task TryDeleteOfficeHourBookingEventAsync(int bookingId, CancellationToken cancellationToken);

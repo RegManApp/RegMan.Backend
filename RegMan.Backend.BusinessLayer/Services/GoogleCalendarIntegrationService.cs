@@ -1,5 +1,4 @@
 using System.Text;
-using System.Text.Json;
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Auth.OAuth2.Flows;
 using Google.Apis.Auth.OAuth2.Requests;
@@ -16,6 +15,7 @@ using RegMan.Backend.BusinessLayer.DTOs.Integrations;
 using RegMan.Backend.DAL.Contracts;
 using RegMan.Backend.DAL.Entities;
 using RegMan.Backend.DAL.Entities.Integrations;
+using System.Security.Cryptography;
 using System.Threading;
 
 namespace RegMan.Backend.BusinessLayer.Services
@@ -27,10 +27,12 @@ namespace RegMan.Backend.BusinessLayer.Services
             CalendarService.Scope.CalendarEvents
         };
 
+        private static readonly TimeSpan OAuthStateTtl = TimeSpan.FromMinutes(10);
+        private const int OAuthStateBytes = 32;
+
         private readonly IUnitOfWork unitOfWork;
         private readonly ILogger<GoogleCalendarIntegrationService> logger;
         private readonly IDataProtector tokenProtector;
-        private readonly IDataProtector stateProtector;
         private readonly string clientId = string.Empty;
         private readonly string clientSecret = string.Empty;
         private readonly string redirectUri = string.Empty;
@@ -51,7 +53,6 @@ namespace RegMan.Backend.BusinessLayer.Services
             this.logger = logger;
 
             tokenProtector = dataProtectionProvider.CreateProtector("RegMan.GoogleCalendarTokens.v1");
-            stateProtector = dataProtectionProvider.CreateProtector("RegMan.GoogleCalendarOAuthState.v1");
 
             // MonsterASP note:
             // - Env vars may not be reliably injected at runtime.
@@ -134,20 +135,48 @@ namespace RegMan.Backend.BusinessLayer.Services
                 );
             }
 
-            string state;
-            try
+            // SECURITY: generate a cryptographically secure random state and store it server-side.
+            // The callback will only succeed for the same authenticated user who initiated the flow.
+            var nowUtc = DateTime.UtcNow;
+            var expiresAtUtc = nowUtc.Add(OAuthStateTtl);
+
+            var state = string.Empty;
+            var persisted = false;
+            for (var attempt = 0; attempt < 3 && !persisted; attempt++)
             {
-                state = ProtectState(new GoogleCalendarOAuthState(
-                    UserId: userId,
-                    IssuedAtUtc: DateTime.UtcNow,
-                    ReturnUrl: string.IsNullOrWhiteSpace(returnUrl) ? null : returnUrl
-                ));
+                state = GenerateStateToken();
+                var stateHash = ComputeStateHash(state);
+
+                Db.Set<GoogleCalendarOAuthStateNonce>().Add(new GoogleCalendarOAuthStateNonce
+                {
+                    StateHash = stateHash,
+                    UserId = userId,
+                    IssuedAtUtc = nowUtc,
+                    ExpiresAtUtc = expiresAtUtc,
+                    IsUsed = false,
+                    ReturnUrl = string.IsNullOrWhiteSpace(returnUrl) ? null : returnUrl,
+                    CreatedAtUtc = nowUtc
+                });
+
+                try
+                {
+                    Db.SaveChanges();
+                    persisted = true;
+                    break;
+                }
+                catch (DbUpdateException ex)
+                {
+                    // Extremely unlikely: hash collision / unique constraint violation.
+                    logger.LogWarning(ex, "Failed to persist Google OAuth state (attempt {Attempt})", attempt + 1);
+                    // Detach the added entity to avoid polluting the change tracker for retries.
+                    Db.ChangeTracker.Clear();
+                }
             }
-            catch (Exception ex)
+
+            if (!persisted)
             {
                 throw new InvalidOperationException(
-                    "Failed to generate OAuth state. This is usually a server crypto (Data Protection) configuration issue. Try again later.",
-                    ex
+                    "Failed to generate OAuth state. Please try again."
                 );
             }
 
@@ -204,45 +233,97 @@ namespace RegMan.Backend.BusinessLayer.Services
 
         public GoogleCalendarOAuthState UnprotectState(string protectedState)
         {
-            try
-            {
-                var json = stateProtector.Unprotect(protectedState);
-                var parsed = JsonSerializer.Deserialize<GoogleCalendarOAuthState>(json);
-
-                if (parsed == null || string.IsNullOrWhiteSpace(parsed.UserId))
-                    throw new InvalidOperationException("Invalid OAuth state payload.");
-
-                // Basic replay protection window
-                if (parsed.IssuedAtUtc < DateTime.UtcNow.AddMinutes(-30))
-                    throw new InvalidOperationException("OAuth state has expired. Please try connecting again.");
-
-                return parsed;
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidOperationException("Invalid OAuth state.", ex);
-            }
+            // Legacy API surface; OAuth state is now stored server-side.
+            throw new NotSupportedException("Google OAuth state is stored server-side and cannot be unprotected client-side.");
         }
 
-        public async Task<string?> HandleOAuthCallbackAsync(string code, string protectedState, CancellationToken cancellationToken)
+        public async Task<string?> HandleOAuthCallbackAsync(string currentUserId, string code, string state, CancellationToken cancellationToken)
         {
             if (!isConfigured)
                 throw new InvalidOperationException("Google OAuth is not configured.");
+            if (string.IsNullOrWhiteSpace(currentUserId))
+                throw new UnauthorizedAccessException("User is not authenticated.");
+            if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(state))
+                throw new UnauthorizedAccessException("Missing code/state.");
 
-            var state = UnprotectState(protectedState);
+            // Validate + consume state BEFORE exchanging code (one-time use).
+            var returnUrl = await ValidateAndConsumeStateAsync(currentUserId, state, cancellationToken);
 
             var flow = CreateFlow();
 
             TokenResponse tokenResponse = await flow.ExchangeCodeForTokenAsync(
-                userId: state.UserId,
+                userId: currentUserId,
                 code: code,
                 redirectUri: redirectUri,
                 taskCancellationToken: cancellationToken
             );
 
-            await UpsertTokenAsync(state.UserId, tokenResponse, cancellationToken);
+            await UpsertTokenAsync(currentUserId, tokenResponse, cancellationToken);
 
-            return state.ReturnUrl;
+            return returnUrl;
+        }
+
+        private async Task<string?> ValidateAndConsumeStateAsync(string currentUserId, string state, CancellationToken cancellationToken)
+        {
+            var nowUtc = DateTime.UtcNow;
+            var stateHash = ComputeStateHash(state);
+
+            var record = await Db.Set<GoogleCalendarOAuthStateNonce>()
+                .AsNoTracking()
+                .Where(s => s.StateHash == stateHash)
+                .Select(s => new
+                {
+                    s.GoogleCalendarOAuthStateNonceId,
+                    s.UserId,
+                    s.IsUsed,
+                    s.ExpiresAtUtc,
+                    s.ReturnUrl
+                })
+                .SingleOrDefaultAsync(cancellationToken);
+
+            if (record == null)
+                throw new UnauthorizedAccessException("Invalid OAuth state.");
+            if (!string.Equals(record.UserId, currentUserId, StringComparison.Ordinal))
+                throw new UnauthorizedAccessException("OAuth state does not belong to the current user.");
+            if (record.IsUsed)
+                throw new UnauthorizedAccessException("OAuth state has already been used.");
+            if (record.ExpiresAtUtc <= nowUtc)
+                throw new UnauthorizedAccessException("OAuth state has expired.");
+
+            // One-time use: flip IsUsed atomically. If this fails, treat as replay/invalid.
+            var affected = await Db.Set<GoogleCalendarOAuthStateNonce>()
+                .Where(s => s.GoogleCalendarOAuthStateNonceId == record.GoogleCalendarOAuthStateNonceId
+                            && s.UserId == currentUserId
+                            && !s.IsUsed
+                            && s.ExpiresAtUtc > nowUtc)
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(x => x.IsUsed, true)
+                        .SetProperty(x => x.UsedAtUtc, nowUtc),
+                    cancellationToken);
+
+            if (affected != 1)
+                throw new UnauthorizedAccessException("OAuth state is invalid or has been replayed.");
+
+            return record.ReturnUrl;
+        }
+
+        private static string GenerateStateToken()
+        {
+            // 256-bit state, base64url without padding.
+            var bytes = RandomNumberGenerator.GetBytes(OAuthStateBytes);
+            var b64 = Convert.ToBase64String(bytes);
+            return b64.TrimEnd('=')
+                .Replace('+', '-')
+                .Replace('/', '_');
+        }
+
+        private static string ComputeStateHash(string state)
+        {
+            // Hash the exact state string value (after URL decoding, which ASP.NET already performs).
+            var bytes = Encoding.UTF8.GetBytes(state);
+            var hash = SHA256.HashData(bytes);
+            return Convert.ToHexString(hash); // 64 hex chars
         }
 
         public Task<bool> IsConnectedAsync(string userId, CancellationToken cancellationToken)
@@ -458,12 +539,6 @@ namespace RegMan.Backend.BusinessLayer.Services
                 },
                 Scopes = Scopes
             });
-        }
-
-        private string ProtectState(GoogleCalendarOAuthState state)
-        {
-            var json = JsonSerializer.Serialize(state);
-            return stateProtector.Protect(json);
         }
 
         private async Task<bool> HasGoogleTokenAsync(string userId, CancellationToken cancellationToken)

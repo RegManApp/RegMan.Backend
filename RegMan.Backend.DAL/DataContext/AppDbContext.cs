@@ -22,6 +22,7 @@ namespace RegMan.Backend.DAL.DataContext
         public DbSet<ConversationParticipant> ConversationParticipants { get; set; }
         public DbSet<MessageUserDeletion> MessageUserDeletions { get; set; }
         public DbSet<GoogleCalendarUserToken> GoogleCalendarUserTokens { get; set; }
+        public DbSet<GoogleCalendarOAuthStateNonce> GoogleCalendarOAuthStateNonces { get; set; }
 
         public DbSet<Announcement> Announcements { get; set; }
         public DbSet<AnnouncementRecipient> AnnouncementRecipients { get; set; }
@@ -76,6 +77,31 @@ namespace RegMan.Backend.DAL.DataContext
                 .WithOne()
                 .HasForeignKey<GoogleCalendarUserToken>(t => t.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<GoogleCalendarOAuthStateNonce>()
+                .HasOne(s => s.User)
+                .WithMany()
+                .HasForeignKey(s => s.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<GoogleCalendarOAuthStateNonce>()
+                .HasIndex(s => s.StateHash)
+                .IsUnique();
+
+            modelBuilder.Entity<GoogleCalendarOAuthStateNonce>()
+                .HasIndex(s => new { s.UserId, s.IsUsed, s.ExpiresAtUtc });
+
+            modelBuilder.Entity<GoogleCalendarOAuthStateNonce>()
+                .Property(s => s.StateHash)
+                .HasMaxLength(64);
+
+            modelBuilder.Entity<GoogleCalendarOAuthStateNonce>()
+                .Property(s => s.ReturnUrl)
+                .HasMaxLength(2048);
+
+            modelBuilder.Entity<GoogleCalendarOAuthStateNonce>()
+                .Property(s => s.CreatedAtUtc)
+                .HasDefaultValueSql("GETUTCDATE()");
 
             modelBuilder.Entity<UserCalendarPreferences>()
                 .HasOne(p => p.User)
