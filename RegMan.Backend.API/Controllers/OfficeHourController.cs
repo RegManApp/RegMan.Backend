@@ -9,7 +9,9 @@ using System.Security.Claims;
 
 namespace RegMan.Backend.API.Controllers
 {
-    [Route("api/[controller]")]
+    // Explicit route to lock the public API contract (avoid accidental breaking changes from controller renames).
+    [Route("api/officehour")]
+    [Route("api/officehours")]
     [ApiController]
     [Authorize]
     public class OfficeHourController : ControllerBase
@@ -290,10 +292,12 @@ namespace RegMan.Backend.API.Controllers
         /// Book an office hour
         /// </summary>
         [HttpPost("{id}/book")]
-        public async Task<IActionResult> BookOfficeHour(int id, [FromBody] BookOfficeHourDTO dto)
+        public async Task<IActionResult> BookOfficeHour(int id, [FromBody] BookOfficeHourDTO? dto)
         {
             if (!TryGetUserId(out var userId))
                 return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized", StatusCodes.Status401Unauthorized));
+
+            dto ??= new BookOfficeHourDTO();
 
             var result = await officeHoursService.BookOfficeHourAsync(userId, id, new BookOfficeHourRequestDTO
             {
