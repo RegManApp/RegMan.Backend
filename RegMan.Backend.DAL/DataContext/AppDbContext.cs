@@ -24,6 +24,10 @@ namespace RegMan.Backend.DAL.DataContext
         public DbSet<GoogleCalendarUserToken> GoogleCalendarUserTokens { get; set; }
         public DbSet<GoogleCalendarOAuthStateNonce> GoogleCalendarOAuthStateNonces { get; set; }
 
+        public DbSet<OfficeHourSession> OfficeHourSessions { get; set; }
+        public DbSet<OfficeHourQueueEntry> OfficeHourQueueEntries { get; set; }
+        public DbSet<OfficeHourQrToken> OfficeHourQrTokens { get; set; }
+
         public DbSet<Announcement> Announcements { get; set; }
         public DbSet<AnnouncementRecipient> AnnouncementRecipients { get; set; }
 
@@ -215,6 +219,51 @@ namespace RegMan.Backend.DAL.DataContext
                 .HasOne(a => a.CreatedByUser)
                 .WithMany()
                 .HasForeignKey(a => a.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ============================
+            // SMART OFFICE HOURS (Queue + QR)
+            // ============================
+
+            modelBuilder.Entity<OfficeHourSession>()
+                .HasIndex(s => s.OfficeHourId)
+                .IsUnique();
+
+            modelBuilder.Entity<OfficeHourSession>()
+                .HasOne(s => s.OfficeHour)
+                .WithMany()
+                .HasForeignKey(s => s.OfficeHourId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OfficeHourQueueEntry>()
+                .HasIndex(e => new { e.SessionId, e.EnqueuedAtUtc });
+
+            // Prevent a user from having multiple active entries in the same session
+            modelBuilder.Entity<OfficeHourQueueEntry>()
+                .HasIndex(e => new { e.SessionId, e.StudentUserId, e.IsActive })
+                .IsUnique()
+                .HasFilter("[IsActive] = 1");
+
+            modelBuilder.Entity<OfficeHourQueueEntry>()
+                .HasOne(e => e.Session)
+                .WithMany(s => s.QueueEntries)
+                .HasForeignKey(e => e.SessionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OfficeHourQueueEntry>()
+                .HasOne(e => e.StudentUser)
+                .WithMany()
+                .HasForeignKey(e => e.StudentUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OfficeHourQrToken>()
+                .HasIndex(t => t.QueueEntryId)
+                .IsUnique();
+
+            modelBuilder.Entity<OfficeHourQrToken>()
+                .HasOne(t => t.QueueEntry)
+                .WithOne(e => e.QrToken)
+                .HasForeignKey<OfficeHourQrToken>(t => t.QueueEntryId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Announcement>()

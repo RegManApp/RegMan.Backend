@@ -136,6 +136,13 @@ namespace RegMan.Backend.API
             builder.Services.AddScoped<IChatRealtimePublisher, SignalRChatRealtimePublisher>();
             builder.Services.AddScoped<IAnnouncementRealtimePublisher, SignalRAnnouncementRealtimePublisher>();
 
+            // Smart Office Hours realtime publisher
+            builder.Services.AddScoped<ISmartOfficeHoursRealtimePublisher, SignalRSmartOfficeHoursRealtimePublisher>();
+
+            // Smart Office Hours background processing (QR rotation + auto no-show)
+            builder.Services.AddHostedService<SmartOfficeHoursQrRotationHostedService>();
+            builder.Services.AddHostedService<SmartOfficeHoursNoShowHostedService>();
+
             // Scheduled notification dispatcher (in-app reminders)
             builder.Services.AddHostedService<ScheduledNotificationDispatcherHostedService>();
             // =========================
@@ -217,7 +224,7 @@ namespace RegMan.Backend.API
                         var path = context.HttpContext.Request.Path;
 
                         if (!string.IsNullOrEmpty(accessToken) &&
-                            (path.StartsWithSegments("/hubs/chat") || path.StartsWithSegments("/hubs/notifications")))
+                            (path.StartsWithSegments("/hubs/chat") || path.StartsWithSegments("/hubs/notifications") || path.StartsWithSegments("/hubs/officehours")))
                         {
                             context.Token = accessToken;
                         }
@@ -411,6 +418,7 @@ namespace RegMan.Backend.API
 
             app.MapHub<ChatHub>("/hubs/chat");
             app.MapHub<NotificationHub>("/hubs/notifications");
+            app.MapHub<SmartOfficeHoursHub>("/hubs/officehours");
             app.MapControllers();
 
             // ==================

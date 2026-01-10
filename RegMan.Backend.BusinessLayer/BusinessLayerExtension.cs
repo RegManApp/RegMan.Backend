@@ -27,9 +27,12 @@ namespace RegMan.Backend.BusinessLayer
             services.AddScoped<IAcademicPlanService, AcademicPlanService>();
             services.AddScoped<IStudentProfileService, StudentProfileService>();
             services.AddScoped<IOfficeHoursService, OfficeHoursService>();
+            services.AddScoped<ISmartOfficeHoursService, SmartOfficeHoursService>();
             services.AddScoped<INotificationService, NotificationService>();
             services.AddScoped<IAnnouncementsService, AnnouncementsService>();
             services.AddScoped<IGoogleCalendarIntegrationService, GoogleCalendarIntegrationService>();
+
+            services.AddOptions<SmartOfficeHoursOptions>();
 
             services.AddScoped<ICalendarViewService, CalendarViewService>();
 
