@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using RegMan.Backend.DAL.DataContext;
 
@@ -11,9 +12,11 @@ using RegMan.Backend.DAL.DataContext;
 namespace RegMan.Backend.DAL.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260110204432_SmartOfficeHoursSchemaAlign")]
+    partial class SmartOfficeHoursSchemaAlign
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1347,9 +1350,6 @@ namespace RegMan.Backend.DAL.Migrations
 
                     b.HasKey("QueueEntryId");
 
-                    b.HasIndex("StudentUserId")
-                        .HasDatabaseName("IX_OfficeHourQueueEntries_StudentUserId");
-
                     b.HasIndex("StudentUserId");
 
                     b.HasIndex("SessionId", "EnqueuedAtUtc")
@@ -1392,9 +1392,6 @@ namespace RegMan.Backend.DAL.Migrations
                         .HasColumnName("IsOpen");
 
                     b.HasKey("SessionId");
-
-                    b.HasIndex("OfficeHourIdDb")
-                        .HasDatabaseName("IX_OfficeHourSessions_OfficeHourId");
 
                     b.HasIndex("OfficeHourIdDb");
 

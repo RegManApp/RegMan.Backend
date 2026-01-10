@@ -33,10 +33,7 @@ namespace RegMan.Backend.BusinessLayer.Services
             IOptions<SmartOfficeHoursOptions>? options = null)
         {
             _db = db;
-            var jwtKey = configuration["Jwt:Key"]; // supports env var Jwt__Key
-            if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Length < 32)
-                throw new InvalidOperationException("JWT signing key is missing/weak; required for Smart Office Hours QR signing");
-
+            var jwtKey = configuration["Jwt:Key"]!;
             _qrSigningKey = Encoding.UTF8.GetBytes(jwtKey);
             _publisher = publisher;
             _auditLog = auditLog;

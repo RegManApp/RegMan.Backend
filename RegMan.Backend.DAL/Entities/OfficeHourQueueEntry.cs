@@ -16,15 +16,17 @@ namespace RegMan.Backend.DAL.Entities
     public class OfficeHourQueueEntry
     {
         [Key]
+        [Column("OfficeHourQueueEntryId")]
         public int QueueEntryId { get; set; }
 
         [Required]
+        [Column("OfficeHourSessionId")]
         public int SessionId { get; set; }
 
         [Required]
         public string StudentUserId { get; set; } = null!;
 
-        [MaxLength(500)]
+        [NotMapped]
         public string? Purpose { get; set; }
 
         public OfficeHourQueueEntryStatus Status { get; set; } = OfficeHourQueueEntryStatus.Waiting;
@@ -32,13 +34,17 @@ namespace RegMan.Backend.DAL.Entities
         public bool IsActive { get; set; } = true;
 
         public DateTime EnqueuedAtUtc { get; set; } = DateTime.UtcNow;
+        [Column("CheckedInAtUtc")]
         public DateTime? ReadyAtUtc { get; set; }
+        [Column("StartedAtUtc")]
         public DateTime? InProgressAtUtc { get; set; }
+        [Column("CompletedAtUtc")]
         public DateTime? DoneAtUtc { get; set; }
         public DateTime? NoShowAtUtc { get; set; }
 
         public DateTime? ReadyExpiresAtUtc { get; set; }
 
+        [NotMapped]
         public string? LastStateChangedByUserId { get; set; }
         public DateTime LastStateChangedAtUtc { get; set; } = DateTime.UtcNow;
 

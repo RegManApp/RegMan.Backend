@@ -13,12 +13,21 @@ namespace RegMan.Backend.DAL.Entities
     public class OfficeHourSession
     {
         [Key]
+        [Column("OfficeHourSessionId")]
         public int SessionId { get; set; }
 
-        [Required]
-        public int OfficeHourId { get; set; }
+        [Column("OfficeHourId")]
+        public int? OfficeHourIdDb { get; set; }
+
+        [NotMapped]
+        public int OfficeHourId
+        {
+            get => OfficeHourIdDb ?? 0;
+            set => OfficeHourIdDb = value;
+        }
 
         [Required]
+        [MaxLength(450)]
         public string ProviderUserId { get; set; } = null!;
 
         public OfficeHourSessionStatus Status { get; set; } = OfficeHourSessionStatus.Active;

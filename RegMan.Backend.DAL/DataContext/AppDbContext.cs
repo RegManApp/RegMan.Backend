@@ -225,24 +225,35 @@ namespace RegMan.Backend.DAL.DataContext
             // SMART OFFICE HOURS (Queue + QR)
             // ============================
 
+            // Align with existing schema: OfficeHourSessions has IsOpen (bit) not Status (int)
             modelBuilder.Entity<OfficeHourSession>()
-                .HasIndex(s => s.OfficeHourId)
-                .IsUnique();
+                .Property(s => s.Status)
+                .HasColumnName("IsOpen")
+                .HasConversion(
+                    v => v == OfficeHourSessionStatus.Active,
+                    v => v ? OfficeHourSessionStatus.Active : OfficeHourSessionStatus.Closed);
 
+            modelBuilder.Entity<OfficeHourSession>()
+                .Property(s => s.ProviderUserId)
+                .HasMaxLength(450);
+
+            // Existing schema allows OfficeHourId to be nullable
             modelBuilder.Entity<OfficeHourSession>()
                 .HasOne(s => s.OfficeHour)
                 .WithMany()
-                .HasForeignKey(s => s.OfficeHourId)
+                .HasForeignKey(s => s.OfficeHourIdDb)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<OfficeHourQueueEntry>()
-                .HasIndex(e => new { e.SessionId, e.EnqueuedAtUtc });
+                .HasIndex(e => new { e.SessionId, e.EnqueuedAtUtc })
+                .HasDatabaseName("IX_OfficeHourQueueEntries_OfficeHourSessionId_EnqueuedAtUtc");
 
-            // Prevent a user from having multiple active entries in the same session
+            // Match existing filtered unique index semantics: active statuses (0,1,2)
             modelBuilder.Entity<OfficeHourQueueEntry>()
-                .HasIndex(e => new { e.SessionId, e.StudentUserId, e.IsActive })
+                .HasIndex(e => new { e.SessionId, e.StudentUserId })
                 .IsUnique()
-                .HasFilter("[IsActive] = 1");
+                .HasDatabaseName("UX_OfficeHourQueueEntries_Active_Student_Session")
+                .HasFilter("[Status] IN ((0), (1), (2))");
 
             modelBuilder.Entity<OfficeHourQueueEntry>()
                 .HasOne(e => e.Session)
@@ -257,14 +268,21 @@ namespace RegMan.Backend.DAL.DataContext
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<OfficeHourQrToken>()
-                .HasIndex(t => t.QueueEntryId)
-                .IsUnique();
-
-            modelBuilder.Entity<OfficeHourQrToken>()
                 .HasOne(t => t.QueueEntry)
                 .WithOne(e => e.QrToken)
                 .HasForeignKey<OfficeHourQrToken>(t => t.QueueEntryId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OfficeHourQrToken>()
+                .HasIndex(t => t.TokenHash)
+                .IsUnique()
+                .HasDatabaseName("IX_OfficeHourCompletionQrTokens_TokenHash");
+
+            modelBuilder.Entity<OfficeHourQrToken>()
+                .Property(t => t.TokenHash)
+                .HasMaxLength(450)
+                .HasDefaultValueSql("CONVERT(nvarchar(450), NEWID())")
+                .ValueGeneratedOnAdd();
 
             modelBuilder.Entity<Announcement>()
                 .HasOne(a => a.Course)

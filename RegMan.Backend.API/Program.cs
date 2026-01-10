@@ -34,6 +34,10 @@ namespace RegMan.Backend.API
         {
             var builder = WebApplication.CreateBuilder(args);
 
+            // Ensure environment variables are loaded into IConfiguration (Jwt__Key => Jwt:Key)
+            // This is normally included by default, but we call it explicitly for deployment safety.
+            builder.Configuration.AddEnvironmentVariables();
+
             // ==================
             // MonsterASP/IIS config fallback
             // ==================
@@ -183,11 +187,11 @@ namespace RegMan.Backend.API
             // =================
             // JWT Authentication
             // =================
-            var jwtKey = builder.Configuration["Jwt:Key"]; // supports env var: Jwt__Key
+            var jwtKey = builder.Configuration["Jwt:Key"]; // single source of truth (env var: Jwt__Key)
             if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Contains("SUPER_SECRET_KEY", StringComparison.OrdinalIgnoreCase) || jwtKey.Length < 32)
             {
                 throw new InvalidOperationException(
-                    "JWT signing key is missing/weak. Configure a strong secret via environment variable 'Jwt__Key' (>= 32 chars)."
+                    "JWT signing key is missing/weak. Configure a strong secret via environment variable 'Jwt__Key' (maps to configuration key 'Jwt:Key') (>= 32 chars)."
                 );
             }
 
@@ -488,12 +492,19 @@ namespace RegMan.Backend.API
                     }
                 }
 
-                // Normalize into the keys we support (both env-style and Google:* style)
+                // Normalize into the keys we support (both env-style and Section:Key style)
                 string? Get(string k) => secrets.TryGetValue(k, out var v) ? v : null;
 
                 var clientId = Get("GOOGLE_CLIENT_ID") ?? Get("Google__ClientId") ?? Get("Google:ClientId");
                 var clientSecret = Get("GOOGLE_CLIENT_SECRET") ?? Get("Google__ClientSecret") ?? Get("Google:ClientSecret");
                 var redirectUri = Get("GOOGLE_REDIRECT_URI") ?? Get("Google__RedirectUri") ?? Get("Google:RedirectUri");
+
+                // MonsterASP may place environment variables into web.config appSettings.
+                // If Jwt__Key is present there, mirror it into Jwt:Key so the rest of the app reads a single configuration key.
+                var jwtKeyFromWebConfig = Get("Jwt__Key") ?? Get("Jwt:Key");
+
+                var existingJwtKey = builder.Configuration["Jwt:Key"]; // single source of truth
+                var shouldInjectJwtKey = string.IsNullOrWhiteSpace(existingJwtKey) && !string.IsNullOrWhiteSpace(jwtKeyFromWebConfig);
 
                 var injected = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
                 {
@@ -504,6 +515,11 @@ namespace RegMan.Backend.API
                     ["Google:ClientSecret"] = clientSecret,
                     ["Google:RedirectUri"] = redirectUri
                 };
+
+                if (shouldInjectJwtKey)
+                {
+                    injected["Jwt:Key"] = jwtKeyFromWebConfig;
+                }
 
                 builder.Configuration.AddInMemoryCollection(injected!);
             }

@@ -11,145 +11,90 @@ namespace RegMan.Backend.DAL.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Create tables if missing (idempotent)
             migrationBuilder.Sql(@"
-IF OBJECT_ID(N'[dbo].[OfficeHourSessions]', N'U') IS NULL
-BEGIN
-    CREATE TABLE [dbo].[OfficeHourSessions]
-    (
-        [SessionId] INT IDENTITY(1,1) NOT NULL,
-        [OfficeHourId] INT NOT NULL,
-        [ProviderUserId] NVARCHAR(MAX) NOT NULL,
-        [Status] INT NOT NULL,
-        [CreatedAtUtc] DATETIME2 NOT NULL,
-        [ClosedAtUtc] DATETIME2 NULL,
-        CONSTRAINT [PK_OfficeHourSessions] PRIMARY KEY ([SessionId]),
-        CONSTRAINT [FK_OfficeHourSessions_OfficeHours_OfficeHourId] FOREIGN KEY ([OfficeHourId])
-            REFERENCES [dbo].[OfficeHours]([OfficeHourId]) ON DELETE NO ACTION
-    );
-END;
+-- NOTE: These tables already exist in production. Do NOT create them.
 
-IF OBJECT_ID(N'[dbo].[OfficeHourQueueEntries]', N'U') IS NULL
-BEGIN
-    CREATE TABLE [dbo].[OfficeHourQueueEntries]
-    (
-        [QueueEntryId] INT IDENTITY(1,1) NOT NULL,
-        [SessionId] INT NOT NULL,
-        [StudentUserId] NVARCHAR(450) NOT NULL,
-        [Purpose] NVARCHAR(500) NULL,
-        [Status] INT NOT NULL,
-        [IsActive] BIT NOT NULL,
-        [EnqueuedAtUtc] DATETIME2 NOT NULL,
-        [ReadyAtUtc] DATETIME2 NULL,
-        [InProgressAtUtc] DATETIME2 NULL,
-        [DoneAtUtc] DATETIME2 NULL,
-        [NoShowAtUtc] DATETIME2 NULL,
-        [ReadyExpiresAtUtc] DATETIME2 NULL,
-        [LastStateChangedByUserId] NVARCHAR(MAX) NULL,
-        [LastStateChangedAtUtc] DATETIME2 NOT NULL,
-        CONSTRAINT [PK_OfficeHourQueueEntries] PRIMARY KEY ([QueueEntryId]),
-        CONSTRAINT [FK_OfficeHourQueueEntries_AspNetUsers_StudentUserId] FOREIGN KEY ([StudentUserId])
-            REFERENCES [dbo].[AspNetUsers]([Id]) ON DELETE NO ACTION,
-        CONSTRAINT [FK_OfficeHourQueueEntries_OfficeHourSessions_SessionId] FOREIGN KEY ([SessionId])
-            REFERENCES [dbo].[OfficeHourSessions]([SessionId]) ON DELETE NO ACTION
-    );
-END;
-
-IF OBJECT_ID(N'[dbo].[OfficeHourQrTokens]', N'U') IS NULL
-BEGIN
-    CREATE TABLE [dbo].[OfficeHourQrTokens]
-    (
-        [QrTokenId] INT IDENTITY(1,1) NOT NULL,
-        [QueueEntryId] INT NOT NULL,
-        [CurrentNonce] UNIQUEIDENTIFIER NULL,
-        [IssuedAtUtc] DATETIME2 NULL,
-        [ExpiresAtUtc] DATETIME2 NULL,
-        [UsedAtUtc] DATETIME2 NULL,
-        [UsedByUserId] NVARCHAR(MAX) NULL,
-        CONSTRAINT [PK_OfficeHourQrTokens] PRIMARY KEY ([QrTokenId]),
-        CONSTRAINT [FK_OfficeHourQrTokens_OfficeHourQueueEntries_QueueEntryId] FOREIGN KEY ([QueueEntryId])
-            REFERENCES [dbo].[OfficeHourQueueEntries]([QueueEntryId]) ON DELETE NO ACTION
-    );
-END;
-");
-
-            // Align required columns for existing tables (idempotent)
-            migrationBuilder.Sql(@"
--- OfficeHourQueueEntries: add missing columns used by the model
+-- OfficeHourQueueEntries: add missing column used by Smart Office Hours (idempotent)
 IF OBJECT_ID(N'[dbo].[OfficeHourQueueEntries]', N'U') IS NOT NULL
-AND COL_LENGTH(N'dbo.OfficeHourQueueEntries', N'SessionId') IS NULL
+AND COL_LENGTH(N'dbo.OfficeHourQueueEntries', N'ReadyExpiresAtUtc') IS NULL
 BEGIN
     ALTER TABLE [dbo].[OfficeHourQueueEntries]
-        ADD [SessionId] INT NOT NULL CONSTRAINT [DF_OfficeHourQueueEntries_SessionId] DEFAULT (0);
+        ADD [ReadyExpiresAtUtc] DATETIME2 NULL;
 END;
 
-IF OBJECT_ID(N'[dbo].[OfficeHourQueueEntries]', N'U') IS NOT NULL
-AND COL_LENGTH(N'dbo.OfficeHourQueueEntries', N'Status') IS NULL
+-- OfficeHourCompletionQrTokens: add missing rotation state column (idempotent)
+IF OBJECT_ID(N'[dbo].[OfficeHourCompletionQrTokens]', N'U') IS NOT NULL
+AND COL_LENGTH(N'dbo.OfficeHourCompletionQrTokens', N'CurrentNonce') IS NULL
 BEGIN
-    ALTER TABLE [dbo].[OfficeHourQueueEntries]
-        ADD [Status] INT NOT NULL CONSTRAINT [DF_OfficeHourQueueEntries_Status] DEFAULT (0);
+    ALTER TABLE [dbo].[OfficeHourCompletionQrTokens]
+        ADD [CurrentNonce] UNIQUEIDENTIFIER NULL;
 END;
 
-IF OBJECT_ID(N'[dbo].[OfficeHourQueueEntries]', N'U') IS NOT NULL
-AND COL_LENGTH(N'dbo.OfficeHourQueueEntries', N'EnqueuedAtUtc') IS NULL
+-- Ensure TokenHash has a DB-side generator (unique index exists; avoid NULL inserts)
+IF OBJECT_ID(N'[dbo].[OfficeHourCompletionQrTokens]', N'U') IS NOT NULL
+AND COL_LENGTH(N'dbo.OfficeHourCompletionQrTokens', N'TokenHash') IS NOT NULL
+AND NOT EXISTS (
+    SELECT 1
+    FROM sys.columns c
+    JOIN sys.default_constraints dc ON c.default_object_id = dc.object_id
+    WHERE c.object_id = OBJECT_ID(N'dbo.OfficeHourCompletionQrTokens')
+      AND c.name = N'TokenHash'
+)
 BEGIN
-    ALTER TABLE [dbo].[OfficeHourQueueEntries]
-        ADD [EnqueuedAtUtc] DATETIME2 NOT NULL CONSTRAINT [DF_OfficeHourQueueEntries_EnqueuedAtUtc] DEFAULT (SYSUTCDATETIME());
+    ALTER TABLE [dbo].[OfficeHourCompletionQrTokens]
+        ADD CONSTRAINT [DF_OfficeHourCompletionQrTokens_TokenHash]
+        DEFAULT (CONVERT(nvarchar(450), NEWID())) FOR [TokenHash];
 END;
 
-IF OBJECT_ID(N'[dbo].[OfficeHourQueueEntries]', N'U') IS NOT NULL
-AND COL_LENGTH(N'dbo.OfficeHourQueueEntries', N'LastStateChangedAtUtc') IS NULL
-BEGIN
-    ALTER TABLE [dbo].[OfficeHourQueueEntries]
-        ADD [LastStateChangedAtUtc] DATETIME2 NOT NULL CONSTRAINT [DF_OfficeHourQueueEntries_LastStateChangedAtUtc] DEFAULT (SYSUTCDATETIME());
-END;
-
-IF OBJECT_ID(N'[dbo].[OfficeHourQueueEntries]', N'U') IS NOT NULL
-AND COL_LENGTH(N'dbo.OfficeHourQueueEntries', N'IsActive') IS NULL
-BEGIN
-    ALTER TABLE [dbo].[OfficeHourQueueEntries]
-        ADD [IsActive] BIT NOT NULL CONSTRAINT [DF_OfficeHourQueueEntries_IsActive] DEFAULT (1);
-END;
-");
-
-            // Create indexes if missing (idempotent). Use dynamic SQL to avoid compile-time column resolution issues.
-            migrationBuilder.Sql(@"
+-- Foreign keys: only add if missing, referencing real PKs/columns
 IF OBJECT_ID(N'[dbo].[OfficeHourSessions]', N'U') IS NOT NULL
+AND OBJECT_ID(N'[dbo].[OfficeHours]', N'U') IS NOT NULL
 AND COL_LENGTH(N'dbo.OfficeHourSessions', N'OfficeHourId') IS NOT NULL
-AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_OfficeHourSessions_OfficeHourId' AND object_id = OBJECT_ID(N'[dbo].[OfficeHourSessions]'))
+AND NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_OfficeHourSessions_OfficeHours_OfficeHourId')
 BEGIN
-    EXEC(N'CREATE UNIQUE INDEX [IX_OfficeHourSessions_OfficeHourId] ON [dbo].[OfficeHourSessions] ([OfficeHourId]);');
+    ALTER TABLE [dbo].[OfficeHourSessions]
+        ADD CONSTRAINT [FK_OfficeHourSessions_OfficeHours_OfficeHourId]
+        FOREIGN KEY ([OfficeHourId]) REFERENCES [dbo].[OfficeHours]([OfficeHourId]) ON DELETE NO ACTION;
+END;
+
+IF OBJECT_ID(N'[dbo].[OfficeHourSessions]', N'U') IS NOT NULL
+AND OBJECT_ID(N'[dbo].[AspNetUsers]', N'U') IS NOT NULL
+AND COL_LENGTH(N'dbo.OfficeHourSessions', N'ProviderUserId') IS NOT NULL
+AND NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_OfficeHourSessions_AspNetUsers_ProviderUserId')
+BEGIN
+    ALTER TABLE [dbo].[OfficeHourSessions]
+        ADD CONSTRAINT [FK_OfficeHourSessions_AspNetUsers_ProviderUserId]
+        FOREIGN KEY ([ProviderUserId]) REFERENCES [dbo].[AspNetUsers]([Id]) ON DELETE NO ACTION;
 END;
 
 IF OBJECT_ID(N'[dbo].[OfficeHourQueueEntries]', N'U') IS NOT NULL
-AND COL_LENGTH(N'dbo.OfficeHourQueueEntries', N'SessionId') IS NOT NULL
-AND COL_LENGTH(N'dbo.OfficeHourQueueEntries', N'EnqueuedAtUtc') IS NOT NULL
-AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_OfficeHourQueueEntries_SessionId_EnqueuedAtUtc' AND object_id = OBJECT_ID(N'[dbo].[OfficeHourQueueEntries]'))
+AND OBJECT_ID(N'[dbo].[OfficeHourSessions]', N'U') IS NOT NULL
+AND COL_LENGTH(N'dbo.OfficeHourQueueEntries', N'OfficeHourSessionId') IS NOT NULL
+AND NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_OfficeHourQueueEntries_OfficeHourSessions_OfficeHourSessionId')
 BEGIN
-    EXEC(N'CREATE INDEX [IX_OfficeHourQueueEntries_SessionId_EnqueuedAtUtc] ON [dbo].[OfficeHourQueueEntries] ([SessionId], [EnqueuedAtUtc]);');
+    ALTER TABLE [dbo].[OfficeHourQueueEntries]
+        ADD CONSTRAINT [FK_OfficeHourQueueEntries_OfficeHourSessions_OfficeHourSessionId]
+        FOREIGN KEY ([OfficeHourSessionId]) REFERENCES [dbo].[OfficeHourSessions]([OfficeHourSessionId]) ON DELETE NO ACTION;
 END;
 
 IF OBJECT_ID(N'[dbo].[OfficeHourQueueEntries]', N'U') IS NOT NULL
+AND OBJECT_ID(N'[dbo].[AspNetUsers]', N'U') IS NOT NULL
 AND COL_LENGTH(N'dbo.OfficeHourQueueEntries', N'StudentUserId') IS NOT NULL
-AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_OfficeHourQueueEntries_StudentUserId' AND object_id = OBJECT_ID(N'[dbo].[OfficeHourQueueEntries]'))
+AND NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_OfficeHourQueueEntries_AspNetUsers_StudentUserId')
 BEGIN
-    EXEC(N'CREATE INDEX [IX_OfficeHourQueueEntries_StudentUserId] ON [dbo].[OfficeHourQueueEntries] ([StudentUserId]);');
+    ALTER TABLE [dbo].[OfficeHourQueueEntries]
+        ADD CONSTRAINT [FK_OfficeHourQueueEntries_AspNetUsers_StudentUserId]
+        FOREIGN KEY ([StudentUserId]) REFERENCES [dbo].[AspNetUsers]([Id]) ON DELETE NO ACTION;
 END;
 
-IF OBJECT_ID(N'[dbo].[OfficeHourQueueEntries]', N'U') IS NOT NULL
-AND COL_LENGTH(N'dbo.OfficeHourQueueEntries', N'SessionId') IS NOT NULL
-AND COL_LENGTH(N'dbo.OfficeHourQueueEntries', N'StudentUserId') IS NOT NULL
-AND COL_LENGTH(N'dbo.OfficeHourQueueEntries', N'IsActive') IS NOT NULL
-AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_OfficeHourQueueEntries_SessionId_StudentUserId_IsActive' AND object_id = OBJECT_ID(N'[dbo].[OfficeHourQueueEntries]'))
+IF OBJECT_ID(N'[dbo].[OfficeHourCompletionQrTokens]', N'U') IS NOT NULL
+AND OBJECT_ID(N'[dbo].[OfficeHourQueueEntries]', N'U') IS NOT NULL
+AND COL_LENGTH(N'dbo.OfficeHourCompletionQrTokens', N'OfficeHourQueueEntryId') IS NOT NULL
+AND NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_OfficeHourCompletionQrTokens_OfficeHourQueueEntries_OfficeHourQueueEntryId')
 BEGIN
-    EXEC(N'CREATE UNIQUE INDEX [IX_OfficeHourQueueEntries_SessionId_StudentUserId_IsActive] ON [dbo].[OfficeHourQueueEntries] ([SessionId], [StudentUserId], [IsActive]) WHERE [IsActive] = 1;');
-END;
-
-IF OBJECT_ID(N'[dbo].[OfficeHourQrTokens]', N'U') IS NOT NULL
-AND COL_LENGTH(N'dbo.OfficeHourQrTokens', N'QueueEntryId') IS NOT NULL
-AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_OfficeHourQrTokens_QueueEntryId' AND object_id = OBJECT_ID(N'[dbo].[OfficeHourQrTokens]'))
-BEGIN
-    EXEC(N'CREATE UNIQUE INDEX [IX_OfficeHourQrTokens_QueueEntryId] ON [dbo].[OfficeHourQrTokens] ([QueueEntryId]);');
+    ALTER TABLE [dbo].[OfficeHourCompletionQrTokens]
+        ADD CONSTRAINT [FK_OfficeHourCompletionQrTokens_OfficeHourQueueEntries_OfficeHourQueueEntryId]
+        FOREIGN KEY ([OfficeHourQueueEntryId]) REFERENCES [dbo].[OfficeHourQueueEntries]([OfficeHourQueueEntryId]) ON DELETE NO ACTION;
 END;
 ");
         }
@@ -157,14 +102,7 @@ END;
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(
-                name: "OfficeHourQrTokens");
-
-            migrationBuilder.DropTable(
-                name: "OfficeHourQueueEntries");
-
-            migrationBuilder.DropTable(
-                name: "OfficeHourSessions");
+            // Intentionally no-op: production-safe migration (no drops).
         }
     }
 }
